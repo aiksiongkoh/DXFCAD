@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+/build/
+/out/
+.vs/
+
+# Compiled extensions and compiler/linker output belong in build/.
+*.pyd
+*.dll
+*.so
+*.dylib
+*.obj
+*.o
+*.lib
+*.a
+*.pdb
+*.ilk
