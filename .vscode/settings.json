@@ -1,0 +1,6 @@
+{
+    "python.defaultInterpreterPath": "${env:ProgramFiles}/FreeCAD 1.1/bin/python.exe",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/build/python311"
+    ]
+}

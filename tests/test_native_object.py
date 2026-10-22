@@ -36,6 +36,7 @@ class NativeObjectTests(unittest.TestCase):
 
     def test_native_inheritance_geometry_and_metadata(self):
         self.assertEqual(self.obj.TypeId, "DXFCAD::LWPolylineObject")
+        self.assertTrue(self.obj.isDerivedFrom("DXFCAD::DXFEntityObject"))
         self.assertTrue(self.obj.isDerivedFrom("Part::Feature"))
         self.assertTrue(self.obj.isDerivedFrom("App::DocumentObject"))
         self.assertNotIn("Proxy", self.obj.PropertiesList)
@@ -50,6 +51,21 @@ class NativeObjectTests(unittest.TestCase):
         self.assertEqual(self.obj.Shape.Area, 0)
         self.assertAlmostEqual(self.obj.Shape.Length, math.pi)
         self.assertEqual(self.obj.DXFData, NATIVE_DATA)
+        self.assertEqual(self.obj.DisplayStatus, "Centerline")
+
+    def test_shared_lifecycle_rejects_wrong_type_and_handles_empty(self):
+        self.obj.DXFData = "0\nLINE\n10\n0\n20\n0\n11\n1\n21\n0\n"
+        self.doc.recompute()
+        self.assertTrue(self.obj.Shape.isNull())
+        self.assertTrue(self.obj.DisplayStatus.startswith("Error:"))
+        self.obj.DXFData = "0\nLWPOLYLINE\n90\n0\n70\n0\n"
+        self.doc.recompute()
+        self.assertTrue(self.obj.Shape.isNull())
+        self.assertEqual(self.obj.DisplayStatus, "Empty")
+        self.obj.DXFData = NATIVE_DATA
+        DXFCAD.recompute_feature(self.obj)
+        self.assertTrue(self.obj.Shape.isValid())
+        self.assertEqual(self.obj.DisplayStatus, "Widths (curved boundaries approximated)")
 
     def test_undo_redo(self):
         self.doc.UndoMode = 1
@@ -99,6 +115,7 @@ sys.path.insert(0, sys.argv[1])
 doc = FreeCAD.openDocument(sys.argv[2])
 obj = doc.getObject('Polyline')
 assert obj.TypeId == 'DXFCAD::LWPolylineObject'
+assert obj.isDerivedFrom('DXFCAD::DXFEntityObject')
 assert 'Proxy' not in obj.PropertiesList
 assert 'dxfcad_objects' not in sys.modules
 obj.Shape = __import__('Part').Shape()

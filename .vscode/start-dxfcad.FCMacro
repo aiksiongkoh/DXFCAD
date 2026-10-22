@@ -1,0 +1,15 @@
+"""Activate the staged workbench after FreeCAD finishes GUI startup."""
+import FreeCAD
+import FreeCADGui
+from PySide import QtCore
+
+
+def start_dxfcad():
+    try:
+        FreeCADGui.activateWorkbench("DXFCADWorkbench")
+        FreeCAD.Console.PrintMessage("DXFCAD is ready for manual testing in the isolated VS Code profile.\n")
+    except Exception as error:
+        FreeCAD.Console.PrintError(f"DXFCAD startup failed: {error}\n")
+
+
+QtCore.QTimer.singleShot(0, start_dxfcad)

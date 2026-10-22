@@ -1,0 +1,58 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "DXFCAD: FreeCAD 1.1 (manual testing)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${env:ProgramFiles}/FreeCAD 1.1/bin/FreeCAD.exe",
+            "args": [
+                "--user-cfg", "${workspaceFolder}/build/python311/vscode-profile/user.cfg",
+                "--system-cfg", "${workspaceFolder}/build/python311/vscode-profile/system.cfg",
+                "${workspaceFolder}/.vscode/start-dxfcad.FCMacro"
+            ],
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                { "name": "FREECAD_USER_HOME", "value": "${workspaceFolder}/build/python311/vscode-profile" },
+                { "name": "FREECAD_USER_TEMP", "value": "${workspaceFolder}/build/python311/vscode-profile" }
+            ],
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "preLaunchTask": "DXFCAD: build and stage FreeCAD 1.1"
+        },
+        {
+            "name": "DXFCAD: contour GUI tests (FreeCAD 1.1)",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${env:ProgramFiles}/FreeCAD 1.1/bin/python.exe",
+            "program": "${workspaceFolder}/tests/run_gui_test.py",
+            "args": [
+                "--freecad", "${env:ProgramFiles}/FreeCAD 1.1/bin/FreeCAD.exe",
+                "--profile", "${workspaceFolder}/build/python311/vscode-profile",
+                "--test", "${workspaceFolder}/tests/test_contour_gui.py",
+                "--timeout", "120"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "preLaunchTask": "DXFCAD: build and stage FreeCAD 1.1"
+        },
+        {
+            "name": "DXFCAD: current GUI test (FreeCAD 1.1)",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${env:ProgramFiles}/FreeCAD 1.1/bin/python.exe",
+            "program": "${workspaceFolder}/tests/run_gui_test.py",
+            "args": [
+                "--freecad", "${env:ProgramFiles}/FreeCAD 1.1/bin/FreeCAD.exe",
+                "--profile", "${workspaceFolder}/build/python311/vscode-profile",
+                "--test", "${file}",
+                "--timeout", "120"
+            ],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "preLaunchTask": "DXFCAD: build and stage FreeCAD 1.1"
+        }
+    ]
+}

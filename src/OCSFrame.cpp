@@ -44,4 +44,30 @@ Vector3D OCSFrame::toWorld(const Point2D& p, double elevation) const
             coordinate(xAxis_.y*p.x, yAxis_.y*p.y, normal_.y*elevation),
             coordinate(xAxis_.z*p.x, yAxis_.z*p.y, normal_.z*elevation)};
 }
+Vector3D OCSFrame::fromWorld(const Vector3D& p) const
+{
+    if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
+        throw std::invalid_argument("World point must be finite");
+    auto dot = [&](const Vector3D& axis) { return coordinate(p.x*axis.x, p.y*axis.y, p.z*axis.z); };
+    return {dot(xAxis_), dot(yAxis_), dot(normal_)};
+}
+Point2D OCSFrame::intersectLine(const Vector3D& start, const Vector3D& end, double elevation) const
+{
+    if (!std::isfinite(elevation)) throw std::invalid_argument("Elevation must be finite");
+    const auto local = fromWorld(start);
+    // Scaling before subtraction avoids overflowing a direction whose two
+    // finite endpoints have opposite, very large coordinates.
+    fromWorld(end);
+    const double scale = std::max({std::abs(start.x),std::abs(start.y),std::abs(start.z),
+                                   std::abs(end.x),std::abs(end.y),std::abs(end.z)});
+    if (scale == 0) throw std::invalid_argument("Picking line needs distinct points");
+    const auto direction = unit({end.x/scale-start.x/scale, end.y/scale-start.y/scale, end.z/scale-start.z/scale});
+    const auto d = fromWorld(direction);
+    if (std::abs(d.z) <= 1e-12) throw std::domain_error("View is parallel to the polyline plane; change the view direction");
+    const double distance = (elevation-local.z)/d.z;
+    const Point2D result{local.x+distance*d.x, local.y+distance*d.y};
+    if (!std::isfinite(result.x) || !std::isfinite(result.y))
+        throw std::overflow_error("Picked point is not representable");
+    return result;
+}
 }

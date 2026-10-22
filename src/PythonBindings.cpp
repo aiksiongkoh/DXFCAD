@@ -12,6 +12,7 @@ PYBIND11_MODULE(DXFCAD, module)
     bindFreeCAD(module);
 
     py::class_<DXFCAD::Point2D>(module, "Point2D")
+        .def(py::init([](double x, double y) { return DXFCAD::Point2D{x, y}; }), py::arg("x") = 0, py::arg("y") = 0)
         .def_readonly("x", &DXFCAD::Point2D::x)
         .def_readonly("y", &DXFCAD::Point2D::y);
     py::class_<DXFCAD::LWPolylineArc>(module, "LWPolylineArc")
@@ -25,6 +26,8 @@ PYBIND11_MODULE(DXFCAD, module)
         .def_readonly("arc", &DXFCAD::LWPolylineSegment::arc);
 
     py::class_<DXFCAD::Vector3D>(module, "Vector3D")
+        .def(py::init([](double x, double y, double z) { return DXFCAD::Vector3D{x, y, z}; }),
+             py::arg("x") = 0, py::arg("y") = 0, py::arg("z") = 0)
         .def_readonly("x", &DXFCAD::Vector3D::x)
         .def_readonly("y", &DXFCAD::Vector3D::y)
         .def_readonly("z", &DXFCAD::Vector3D::z);
@@ -83,6 +86,22 @@ PYBIND11_MODULE(DXFCAD, module)
         .def_property_readonly("elevation", &DXFCAD::LWPolyline::elevation)
         .def_property_readonly("extrusion", &DXFCAD::LWPolyline::extrusion,
                                py::return_value_policy::copy)
+        .def("with_vertex", &DXFCAD::LWPolyline::withVertex)
+        .def("inserted_vertex", &DXFCAD::LWPolyline::insertedVertex)
+        .def("removed_vertex", &DXFCAD::LWPolyline::removedVertex)
+        .def("with_properties", &DXFCAD::LWPolyline::withProperties,
+             py::arg("closed"), py::arg("constant_width"), py::arg("elevation"), py::arg("extrusion"))
+        .def("translated", &DXFCAD::LWPolyline::translated, py::arg("offset"))
+        .def("rotated", &DXFCAD::LWPolyline::rotated, py::arg("radians"), py::arg("pivot") = DXFCAD::Point2D{0,0})
+        .def("scaled", &DXFCAD::LWPolyline::scaled, py::arg("factor"), py::arg("pivot") = DXFCAD::Point2D{0,0})
+        .def("mirrored", &DXFCAD::LWPolyline::mirrored, py::arg("line_start"), py::arg("line_end"))
+        .def("world_vertices", &DXFCAD::LWPolyline::worldVertices)
+        .def("with_vertex_on_line", &DXFCAD::LWPolyline::withVertexOnLine,
+             py::arg("index"), py::arg("start"), py::arg("end"))
+        .def("with_vertex_at_vertex", &DXFCAD::LWPolyline::withVertexAtVertex,
+             py::arg("index"), py::arg("target"))
+        .def("with_vertex_at_world_point", &DXFCAD::LWPolyline::withVertexAtWorldPoint,
+             py::arg("index"), py::arg("point"), py::arg("plane_tolerance") = 1e-7)
         .def("segments", &DXFCAD::LWPolyline::segments,
              "Derive OCS centerline segments; arc is None for straight segments.")
         .def("world_segments", &DXFCAD::LWPolyline::worldSegments,

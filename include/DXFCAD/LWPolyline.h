@@ -85,6 +85,24 @@ public:
     double elevation() const noexcept;
     const ExtrusionDirection& extrusion() const noexcept;
 
+    // Editing returns a validated value; the original remains unchanged on failure.
+    LWPolyline withVertex(std::size_t index, LWPolylineVertex vertex) const;
+    LWPolyline insertedVertex(std::size_t index, LWPolylineVertex vertex) const;
+    LWPolyline removedVertex(std::size_t index) const;
+    LWPolyline withProperties(bool closed, double constantWidth, double elevation,
+                              ExtrusionDirection extrusion) const;
+    LWPolyline translated(Vector3D offset) const; // WCS displacement
+    LWPolyline rotated(double radians, Point2D pivot = {0, 0}) const; // OCS plane
+    LWPolyline scaled(double factor, Point2D pivot = {0, 0}) const; // uniform in OCS
+    LWPolyline mirrored(Point2D lineStart, Point2D lineEnd) const; // OCS line
+    std::vector<Vector3D> worldVertices() const;
+    // Project a viewport line onto this entity's plane, preserving all outgoing
+    // segment attributes. These interactive edits also validate derived geometry.
+    LWPolyline withVertexOnLine(std::size_t index, Vector3D start, Vector3D end) const;
+    LWPolyline withVertexAtVertex(std::size_t index, std::size_t target) const;
+    LWPolyline withVertexAtWorldPoint(std::size_t index, Vector3D point,
+                                      double planeTolerance = 1e-7) const;
+
     // Derive the OCS centerline without modifying native data. Fewer than two
     // vertices produces no segments. Closed polylines include the closing edge.
     // Coincident straight endpoints are retained; a coincident bulged edge is
@@ -98,10 +116,10 @@ public:
     // throws overflow_error if a transformed coordinate is not representable.
     std::vector<LWPolylineSegment3D> worldSegments() const;
 
-    // Butt-capped width regions for each segment, in world coordinates. Curved
+    // Flat-capped width regions with bounded miter joins, in world coordinates. Curved
     // boundaries are approximated to tolerance in source units. Regions may
-    // overlap and are to be united by the display geometry kernel. No miter or
-    // round joins are added between segments. Zero-width/zero-length segments
+    // overlap and are to be united by the display geometry kernel. Miters
+    // longer than ten half-widths use bevels. Zero-width/zero-length segments
     // produce no regions. Native values are never changed.
     std::vector<LWPolylineWidthRegion> widthRegions(double tolerance = 0.0001) const;
 

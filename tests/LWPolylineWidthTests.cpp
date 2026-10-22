@@ -55,7 +55,16 @@ int main()
             check(cross.size() == 2);
         }
         const auto closed = LWPolyline({{0,0,0,1,1},{4,0,0,1,1},{2,3,0,1,1}},true).widthRegions();
-        check(closed.size() == 3 && closed[2].segmentIndex == 2);
+        check(closed.size() == 6 && closed[2].segmentIndex == 2);
+        const auto corner = LWPolyline({{0,0},{10,0},{10,10}},false,2).widthRegions();
+        check(corner.size() == 3 && corner[2].segmentIndex == 0);
+        near(area(corner[2]),1);
+        near(corner[2].points[2].x,11); near(corner[2].points[2].y,-1);
+        const auto reverseCorner = LWPolyline({{0,0},{10,0},{10,-10}},false,2).widthRegions();
+        near(area(reverseCorner.back()),1);
+        const auto spike = LWPolyline({{0,0},{10,0},{0,0.01}},false,2).widthRegions();
+        check(spike.back().points.size() == 3); // bounded bevel at a near reversal
+        for (const auto& point : spike.back().points) check(std::hypot(point.x-10,point.y) < 2);
         const auto tilted = LWPolyline({{0,0,0,2,2},{4,0}},false,0,5,{0,2,0}).widthRegions()[0];
         near(tilted.points[0].x,0); near(tilted.points[0].y,5); near(tilted.points[0].z,1);
         for (double t : {0.0,-1.0,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN()}) {

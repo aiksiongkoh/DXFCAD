@@ -18,6 +18,8 @@ import DXFCAD
 assert Path(DXFCAD.__file__).parent == module_directory
 from dxfcad_objects import DXFObjectProxy
 from dxfcad_import import import_dxf
+from dxfcad_import import default_text_font
+from dxfcad_export import export_dxf
 
 
 DRAWING = """0
@@ -124,6 +126,61 @@ class ImportTests(unittest.TestCase):
         for name in list(FreeCAD.listDocuments()):
             FreeCAD.closeDocument(name)
 
+    def test_text_justification_in_rotated_tilted_plane_and_restore(self):
+        font = default_text_font()
+        self.assertTrue(font)
+        doc = FreeCAD.newDocument("TextAlignment")
+        raw = "0\nTEXT\n10\n0\n20\n0\n40\n2\n1\nAlign gy\n"
+        def feature(record):
+            obj = DXFCAD.create_feature(doc, DXFCAD.parse_entity(record), font)
+            if obj.TypeId == "Part::FeaturePython":
+                DXFObjectProxy(obj)
+            doc.recompute()
+            self.assertFalse(obj.Shape.isNull(), obj.DisplayStatus)
+            self.assertTrue(obj.Shape.isValid(), obj.DisplayStatus)
+            self.assertEqual(obj.DXFData, record)
+            return obj
+        original = feature(raw).Shape.copy()
+        bounds = original.BoundBox
+        for horizontal in range(3):
+            for vertical in range(4):
+                record = raw.replace("10\n0\n20\n0\n", "10\n7\n20\n8\n30\n9\n") + (
+                    f"11\n7\n21\n8\n31\n9\n72\n{horizontal}\n73\n{vertical}\n"
+                    "41\n2\n50\n90\n210\n0\n220\n1\n230\n0\n")
+                obj = feature(record)
+                x = y = 0
+                if horizontal or vertical:
+                    x = [-bounds.XMin, -(bounds.XMin+bounds.XMax)/2, -bounds.XMax][horizontal]
+                    y = [0, -bounds.YMin, -(bounds.YMin+bounds.YMax)/2, -bounds.YMax][vertical]
+                self.assertEqual(len(original.Vertexes), len(obj.Shape.Vertexes))
+                for old, new in zip(original.Vertexes, obj.Shape.Vertexes):
+                    p = old.Point
+                    expected = FreeCAD.Vector(p.y+y-7, 9, 2*(p.x+x)+8)
+                    self.assertLess((new.Point-expected).Length, 2e-6)
+        # Import, export, and FCStd restore must retain both alignment points
+        # and opaque data rather than replacing native text with outline data.
+        record += "1001\nSynthetic\n1000\nPreserve alignment data\n"
+        drawing = "0\nSECTION\n2\nENTITIES\n"+record+"0\nENDSEC\n0\nEOF\n"
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)/"aligned.dxf"
+            source.write_text(drawing)
+            imported = import_dxf(source)
+            saved = Path(temp)/"aligned.FCStd"
+            imported.saveAs(str(saved))
+            FreeCAD.closeDocument(imported.Name)
+            source.unlink()
+            restored = FreeCAD.openDocument(str(saved))
+            text = next(obj for obj in restored.Objects if "DXFData" in obj.PropertiesList)
+            text.Shape = Part.Shape()
+            text.touch()
+            restored.recompute()
+            self.assertFalse(text.Shape.isNull())
+            self.assertTrue(text.Shape.isValid())
+            self.assertEqual(text.DXFData, record)
+            output = Path(temp)/"exported.dxf"
+            export_dxf(output, restored)
+            self.assertEqual(output.read_bytes(), DXFCAD.DXFDocument.parse(drawing).serialize_bytes())
+
     def test_shapes_and_restore_from_native_records(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "synthetic.dxf"
@@ -201,6 +258,8 @@ class ImportTests(unittest.TestCase):
         self.assertTrue(legacy.ShowWidths)
         doc.recompute()
         self.assertTrue(legacy.Shape.isValid())
+        self.assertEqual(legacy.DXFLayer,DXFCAD.parse_entity(raw).layer)
+        self.assertEqual(legacy.DXFHandle,DXFCAD.parse_entity(raw).handle)
 
     def test_failed_display_rolls_back_existing_document(self):
         with tempfile.TemporaryDirectory() as temp:

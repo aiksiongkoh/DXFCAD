@@ -10,7 +10,6 @@
 #include <BRep_Builder.hxx>
 #include <GC_MakeArcOfCircle.hxx>
 #include <Geom_TrimmedCurve.hxx>
-#include <Standard_Failure.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
@@ -24,7 +23,7 @@ namespace DXFCAD {
 namespace {
 gp_Pnt point(const Vector3D& p) { return {p.x, p.y, p.z}; }
 
-TopoDS_Shape buildShape(const DXFEntity& entity, bool showWidths)
+TopoDS_Shape buildPolylineShape(const DXFEntity& entity, bool showWidths)
 {
     std::vector<TopoDS_Shape> children;
     std::set<std::size_t> covered;
@@ -87,58 +86,27 @@ TopoDS_Shape buildShape(const DXFEntity& entity, bool showWidths)
 }
 }
 
-PROPERTY_SOURCE(DXFCAD::LWPolylineObject, Part::Feature)
+PROPERTY_SOURCE(DXFCAD::LWPolylineObject, DXFCAD::DXFEntityObject)
 
 LWPolylineObject::LWPolylineObject()
+    : DXFEntityObject("LWPOLYLINE", "0\nLWPOLYLINE\n90\n0\n70\n0\n")
 {
-    constexpr auto output = static_cast<App::PropertyType>(App::Prop_ReadOnly | App::Prop_Output);
-    ADD_PROPERTY_TYPE(DXFData, ("0\nLWPOLYLINE\n90\n0\n70\n0\n"), "DXF", App::Prop_Hidden,
-                      "Authoritative native DXF entity group codes");
-    ADD_PROPERTY_TYPE(DXFType, ("LWPOLYLINE"), "DXF", output, "DXF entity type");
-    ADD_PROPERTY_TYPE(DXFLayer, ("0"), "DXF", output, "Native layer name");
-    ADD_PROPERTY_TYPE(DXFHandle, (""), "DXF", output, "Native DXF handle");
-    ADD_PROPERTY_TYPE(DisplayStatus, ("Empty"), "Display", output, "Derived geometry status");
     ADD_PROPERTY_TYPE(ShowWidths, (true), "Display", App::Prop_None, "Display width regions instead of centerlines");
 }
 
 short LWPolylineObject::mustExecute() const
 {
-    return DXFData.isTouched() || ShowWidths.isTouched() ? 1 : Part::Feature::mustExecute();
+    return ShowWidths.isTouched() ? 1 : DXFEntityObject::mustExecute();
 }
 
-App::DocumentObjectExecReturn* LWPolylineObject::execute()
+TopoDS_Shape LWPolylineObject::buildShape(const DXFEntity& entity) const
 {
-    try {
-        const auto entity = parseEntity(DXFData.getValue());
-        if (entity->type() != "LWPOLYLINE") throw std::invalid_argument("LWPolylineObject requires LWPOLYLINE data");
-        const auto result = buildShape(*entity, ShowWidths.getValue());
-        DXFLayer.setValue(entity->layer());
-        DXFHandle.setValue(entity->handle());
-        Shape.setValue(result);
-        DisplayStatus.setValue(ShowWidths.getValue() ? "Widths (curved boundaries approximated)" : "Centerline");
-        return Part::Feature::execute();
-    } catch (const Standard_Failure& error) {
-        Shape.setValue(TopoDS_Shape());
-        const std::string message = error.GetMessageString() ? error.GetMessageString() : "OpenCASCADE error";
-        DisplayStatus.setValue("Error: " + message);
-        return new App::DocumentObjectExecReturn(message, this);
-    } catch (const std::exception& error) {
-        Shape.setValue(TopoDS_Shape());
-        DisplayStatus.setValue(std::string("Error: ") + error.what());
-        return new App::DocumentObjectExecReturn(error.what(), this);
-    }
+    return buildPolylineShape(entity, ShowWidths.getValue());
 }
 
-void LWPolylineObject::onDocumentRestored()
+const char* LWPolylineObject::shapeStatus() const
 {
-    Part::Feature::onDocumentRestored();
-    touch();
-}
-
-const char* LWPolylineObject::getViewProviderName() const
-{
-    // The document object is native; only its view provider uses Python.
-    return "PartGui::ViewProviderPython";
+    return ShowWidths.getValue() ? "Widths (curved boundaries approximated)" : "Centerline";
 }
 
 } // namespace DXFCAD

@@ -30,6 +30,19 @@ std::vector<LWPolylineWidthRegion> LWPolyline::widthRegions(double tolerance) co
         }
         if (unique.size() > 1 && equal(unique.front(), unique.back())) unique.pop_back();
         if (unique.size() < 3) return;
+        // OCC's coplanar fuse requires consistent face normals. Keep the first
+        // boundary point stable while giving all regions clockwise OCS winding.
+        double extent = 0;
+        for (const auto& p : unique) extent = std::max({extent, std::abs(p.x-unique[0].x), std::abs(p.y-unique[0].y)});
+        double signedArea = 0;
+        if (extent > 0 && std::isfinite(extent)) {
+            for (std::size_t j = 1; j+1 < unique.size(); ++j) {
+                const double ax = (unique[j].x-unique[0].x)/extent, ay = (unique[j].y-unique[0].y)/extent;
+                const double bx = (unique[j+1].x-unique[0].x)/extent, by = (unique[j+1].y-unique[0].y)/extent;
+                signedArea += ax*by-ay*bx;
+            }
+            if (signedArea > 0) std::reverse(unique.begin()+1, unique.end());
+        }
         LWPolylineWidthRegion region{index, {}};
         region.points.reserve(unique.size());
         for (const auto& p : unique) region.points.push_back(frame.toWorld(p, elevation_));
@@ -102,6 +115,63 @@ std::vector<LWPolylineWidthRegion> LWPolyline::widthRegions(double tolerance) co
             negative.push_back(arc.center);
             add(i, negative);
         }
+    }
+    // Close outer gaps at vertices with intersections of the actual offset
+    // tangents (including taper). A bounded miter avoids unbounded spikes at
+    // near reversals; those corners use a bevel instead. Segment ends stay flat.
+    struct End {
+        Point2D point, tangent, boundary, direction;
+        double width;
+    };
+    auto endpoint = [&](std::size_t i, bool atEnd, double side) -> std::optional<End> {
+        const auto& segment = local[i];
+        const auto& v = vertices_[i];
+        const double sw = variable ? v.startWidth : constantWidth_;
+        const double ew = variable ? v.endWidth : constantWidth_;
+        const double w = atEnd ? ew : sw;
+        const auto p = atEnd ? segment.end : segment.start;
+        double dx = segment.end.x-segment.start.x, dy = segment.end.y-segment.start.y;
+        double length = std::hypot(dx, dy), curvature = 0;
+        if (length == 0) return {};
+        Point2D tangent{dx/length, dy/length};
+        if (segment.arc) {
+            const auto& arc = *segment.arc;
+            const double sign = arc.sweep > 0 ? 1 : -1;
+            tangent = {-sign*(p.y-arc.center.y)/arc.radius, sign*(p.x-arc.center.x)/arc.radius};
+            length = arc.radius*std::abs(arc.sweep);
+            curvature = sign/arc.radius;
+        }
+        const Point2D n{-tangent.y, tangent.x};
+        const double slope = (ew-sw)/length;
+        End end{p, tangent, {p.x+side*w*n.x/2, p.y+side*w*n.y/2},
+            {(1-side*w*curvature/2)*tangent.x+side*slope*n.x/2,
+             (1-side*w*curvature/2)*tangent.y+side*slope*n.y/2}, w};
+        return end;
+    };
+    auto cross = [](Point2D a, Point2D b) { return a.x*b.y-a.y*b.x; };
+    const auto joins = closed_ ? local.size() : (local.empty() ? 0 : local.size()-1);
+    for (std::size_t i = 0; i < joins; ++i) {
+        const std::size_t next = (i+1)%local.size();
+        auto a = endpoint(i, true, 1), b = endpoint(next, false, 1);
+        if (!a || !b || a->width == 0 || b->width == 0) continue;
+        const double turn = cross(a->tangent, b->tangent);
+        if (std::abs(turn) < 1e-12) continue;
+        const double side = turn > 0 ? -1 : 1;
+        a = endpoint(i, true, side); b = endpoint(next, false, side);
+        const Point2D delta{b->boundary.x-a->boundary.x, b->boundary.y-a->boundary.y};
+        const double determinant = cross(a->direction, b->direction);
+        bool miter = std::isfinite(determinant) && std::abs(determinant) > 1e-12;
+        Point2D intersection{};
+        if (miter) {
+            const double t = cross(delta, b->direction)/determinant;
+            const double u = cross(delta, a->direction)/determinant;
+            intersection = {a->boundary.x+t*a->direction.x, a->boundary.y+t*a->direction.y};
+            const double distance = std::hypot(intersection.x-a->point.x, intersection.y-a->point.y);
+            miter = t >= 0 && u <= 0 && std::isfinite(distance)
+                && distance <= 10*std::max(a->width,b->width)/2;
+        }
+        if (miter) add(i, {a->point, a->boundary, intersection, b->boundary});
+        else add(i, {a->point, a->boundary, b->boundary});
     }
     return result;
 }

@@ -23,7 +23,7 @@ find_library(DXFCAD_FREECAD_PART_LIBRARY NAMES Part
 target_compile_definitions(DXFCAD PRIVATE DXFCAD_NATIVE_OBJECTS)
 pybind11_add_module(_DXFCADObjects MODULE src/Native/Module.cpp src/Native/LWPolylineObject.cpp
     src/Native/DXFEntityObject.cpp src/Native/LineObject.cpp src/Native/ArcObject.cpp
-    src/Native/CircleObject.cpp src/Native/TextObject.cpp)
+    src/Native/CircleObject.cpp src/Native/TextObject.cpp src/Native/DXFDocumentObject.cpp)
 target_link_libraries(_DXFCADObjects PRIVATE DXFCAD::Domain)
 add_dependencies(DXFCAD _DXFCADObjects)
 install(TARGETS _DXFCADObjects LIBRARY DESTINATION . RUNTIME DESTINATION .)

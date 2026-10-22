@@ -12,6 +12,8 @@ public:
     const Vector3D& xAxis() const noexcept { return xAxis_; }
     const Vector3D& yAxis() const noexcept { return yAxis_; }
     Vector3D toWorld(const Point2D& point, double elevation) const;
+    Vector3D fromWorld(const Vector3D& point) const;
+    Point2D intersectLine(const Vector3D& start, const Vector3D& end, double elevation) const;
 
 private:
     Vector3D normal_;

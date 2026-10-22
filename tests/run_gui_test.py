@@ -16,9 +16,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--freecad", required=True, type=Path)
     parser.add_argument("--profile", required=True, type=Path)
+    parser.add_argument("--timeout", type=float, default=120,
+                        help="Maximum FreeCAD runtime in seconds (default: 120)")
     parser.add_argument("--test", type=Path,
                         default=Path(__file__).with_name("test_circle_selection_gui.py"))
     args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
     workspace = Path(__file__).resolve().parents[1]
     profile = args.profile.resolve()
     profile.relative_to(workspace)
@@ -70,9 +74,9 @@ QtCore.QTimer.singleShot(0, run_test)
             completed = subprocess.run(
                 [str(args.freecad.resolve()), "--user-cfg", str(profile / "user.cfg"),
                  "--system-cfg", str(profile / "system.cfg"), str(macro)],
-                env=env, stdout=output, stderr=subprocess.STDOUT, timeout=120)
+                env=env, stdout=output, stderr=subprocess.STDOUT, timeout=args.timeout)
         except subprocess.TimeoutExpired:
-            print(f"FAIL: GUI test did not shut down within 120 seconds; see {log}")
+            print(f"FAIL: GUI test did not shut down within {args.timeout:g} seconds; see {log}")
             return 1
     status = json.loads(result.read_text(encoding="utf-8")) if result.exists() else {}
     if completed.returncode != 0 or not status.get("passed"):

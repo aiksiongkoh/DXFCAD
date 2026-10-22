@@ -62,24 +62,37 @@ class DXFObjectProxy:
         pass
 
 
+def display_color(color):
+    """Choose a visible foreground for white native strokes on a light theme."""
+    if tuple(color) == (1.0,1.0,1.0):
+        import FreeCAD
+        packed = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/View").GetUnsigned("DefaultShapeLineColor",0x191919FF)
+        color = tuple(((packed >> shift) & 255)/255 for shift in (24,16,8))
+    return tuple(color)
+
+
 class DXFViewProvider:
     """Use FreeCAD's standard Part view provider for derived shapes."""
 
     def __init__(self, view_object, color):
-        # White DXF strokes need a contrasting foreground in FreeCAD's light
-        # theme. This affects presentation only; native color codes stay intact.
-        if tuple(color) == (1.0, 1.0, 1.0):
-            import FreeCAD
-
-            packed = FreeCAD.ParamGet("User parameter:BaseApp/Preferences/View").GetUnsigned(
-                "DefaultShapeLineColor", 0x191919FF)
-            color = tuple(((packed >> shift) & 255) / 255 for shift in (24, 16, 8))
+        color = display_color(color)
         view_object.Proxy = self
         self._update_width_mode(view_object)
         view_object.LineColor = tuple(color)
         view_object.ShapeColor = tuple(color)
         view_object.PointColor = tuple(color)
         view_object.LineWidth = 1.5
+
+    def doubleClicked(self, view_object):
+        if getattr(view_object.Object, "DXFType", "") == "LWPOLYLINE":
+            from dxfcad_polyline_ui import show_editor
+            try:
+                show_editor(view_object.Object)
+            except Exception as error:
+                import FreeCAD
+                FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
+            return True
+        return False
 
     def attach(self, view_object):
         self.ViewObject = view_object

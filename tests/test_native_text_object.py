@@ -49,8 +49,8 @@ class NativeTextTests(unittest.TestCase):
         self.doc.recompute()
         self.assertAlmostEqual(self.obj.Shape.Length, 2*original.Length, places=5)
         # OCS X=(-1,0,0), Y=(0,0,1); rotate 90 degrees and scale local X by 2.
-        self.obj.DXFData = raw.replace("10\n0\n20\n0\n", "10\n1\n20\n2\n30\n3\n") + (
-            "41\n2\n50\n90\n210\n0\n220\n1\n230\n0\n")
+        self.obj.DXFData = raw.replace("10\n0\n20\n0\n", "10\n1\n20\n2\n30\n3\n").replace(
+            "1001\n", "41\n2\n50\n90\n210\n0\n220\n1\n230\n0\n1001\n", 1)
         self.doc.recompute()
         self.assertTrue(self.obj.Shape.isValid())
         self.assertEqual(len(original.Vertexes), len(self.obj.Shape.Vertexes))
@@ -73,7 +73,7 @@ class NativeTextTests(unittest.TestCase):
             self.doc.recompute()
             self.assertTrue(self.obj.Shape.isValid())
             self.assertGreater(self.obj.Shape.Length, 0)
-        for invalid in [raw.replace("40\n2\n", "40\n0\n"), raw+"72\n1\n",
+        for invalid in [raw.replace("40\n2\n", "40\n0\n"), raw.replace("1001\n", "72\n1\n1001\n", 1),
                         raw.replace("0\nTEXT\n", "0\nLINE\n", 1)]:
             self.obj.DXFData = invalid
             self.doc.recompute()
