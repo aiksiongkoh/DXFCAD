@@ -85,7 +85,7 @@ class PolylineTaskPanel:
             model = self.edit_session.polyline
             self._load(model, list(range(len(model.vertices))))
         else:
-            self._load(DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(10, 0)]), [-1, -1])
+            self._load(DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(10, 0)]), [-1, -1])
         self._view_update = QtCore.QTimer(self.form)
         self._view_update.setSingleShot(True)
         self._view_update.timeout.connect(self._sync_view)
@@ -171,7 +171,7 @@ class PolylineTaskPanel:
                     raise ValueError(f"Vertex {row + 1}: enter a number in {self.table.horizontalHeaderItem(column).text()}.") from None
             vertices.append(DXFCAD.LWPolylineVertex(*values, self.table.item(row, 5).checkState() == QtCore.Qt.Checked))
             origins.append(int(self.table.item(row, 0).data(QtCore.Qt.UserRole)))
-        model = DXFCAD.LWPolyline(vertices, self.closed.isChecked(), float(self.width.text()),
+        model = DXFCAD.LWPolylineEntity(vertices, self.closed.isChecked(), float(self.width.text()),
                                  float(self.elevation.text()), DXFCAD.ExtrusionDirection(*(float(f.text()) for f in self.extrusion)))
         return model, origins
 
@@ -195,13 +195,13 @@ class PolylineTaskPanel:
             a, b, c, d = [float(field.text()) for field in self.parameters]
             index = self.operation.currentIndex()
             if index == 0:
-                model = model.translated(DXFCAD.Vector3D(a, b, c))
+                model = model.moved(DXFCAD.Vector3D(a, b, c))
             elif index == 1:
-                model = model.rotated(math.radians(a), DXFCAD.Point2D(b, c))
+                model = model.rotated_in_plane(math.radians(a), DXFCAD.Point2D(b, c))
             elif index == 2:
-                model = model.scaled(a, DXFCAD.Point2D(b, c))
+                model = model.scaled_in_plane(a, DXFCAD.Point2D(b, c))
             else:
-                model = model.mirrored(DXFCAD.Point2D(a, b), DXFCAD.Point2D(c, d))
+                model = model.mirrored_in_plane(DXFCAD.Point2D(a, b), DXFCAD.Point2D(c, d))
             self._load(model, origins)
             self.error.clear()
         except Exception as error:

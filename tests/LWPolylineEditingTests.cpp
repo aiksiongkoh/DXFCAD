@@ -17,19 +17,19 @@ int main()
 {
     try {
         using namespace DXFCAD;
-        const LWPolyline p({{0,0,1,1,2,true},{2,0}}, false, 3, 4, {0,2,0});
-        const auto moved = p.translated({1,2,3});
+        const LWPolylineEntity p({{0,0,1,1,2,true},{2,0}}, false, 3, 4, {0,2,0});
+        const auto moved = p.moved({1,2,3});
         const auto a = p.worldSegments()[0], b = moved.worldSegments()[0];
         near(b.start.x-a.start.x, 1); near(b.start.y-a.start.y, 2); near(b.start.z-a.start.z, 3);
         near(b.arc->center.x-a.arc->center.x, 1);
         check(moved.extrusion().y == 2 && p.vertices()[0].x == 0);
-        const auto rotated = p.rotated(std::acos(-1.0)/2, {1,0});
+        const auto rotated = p.rotatedInPlane(std::acos(-1.0)/2, {1,0});
         near(rotated.vertices()[0].x, 1); near(rotated.vertices()[0].y, -1);
         near(rotated.vertices()[1].y, 1); check(rotated.elevation() == 4);
-        const auto scaled = p.scaled(-2);
+        const auto scaled = p.scaledInPlane(-2);
         check(scaled.vertices()[1].x == -4 && scaled.vertices()[0].bulge == 1);
         check(scaled.vertices()[0].endWidth == 4 && scaled.constantWidth() == 6);
-        const auto mirrored = p.mirrored({0,0},{0,1});
+        const auto mirrored = p.mirroredInPlane({0,0},{0,1});
         check(mirrored.vertices()[1].x == -2 && mirrored.vertices()[0].bulge == -1);
         near(mirrored.segments()[0].arc->center.x, -p.segments()[0].arc->center.x);
         const auto inserted = p.insertedVertex(1, {1,1});
@@ -37,10 +37,10 @@ int main()
         rejects([&] { p.withVertex(0, {0,0,0,-1}); });
         rejects([&] { p.insertedVertex(3, {}); });
         rejects([&] { p.removedVertex(2); });
-        rejects([&] { p.scaled(0); });
-        rejects([&] { p.scaled(std::numeric_limits<double>::infinity()); });
-        rejects([&] { p.mirrored({0,0},{0,0}); });
-        rejects([&] { p.translated({0,0,std::numeric_limits<double>::quiet_NaN()}); });
+        rejects([&] { p.scaledInPlane(0); });
+        rejects([&] { p.scaledInPlane(std::numeric_limits<double>::infinity()); });
+        rejects([&] { p.mirroredInPlane({0,0},{0,0}); });
+        rejects([&] { p.moved({0,0,std::numeric_limits<double>::quiet_NaN()}); });
         const auto picked = p.withVertexOnLine(0, {-4,-10,8}, {-4,10,8});
         check(picked.vertices()[0].x == 4 && picked.vertices()[0].y == 8);
         check(picked.vertices()[0].bulge == 1 && picked.vertices()[0].startWidth == 1);
@@ -49,7 +49,7 @@ int main()
         const auto world = picked.worldVertices()[0];
         near(world.x,-4); near(world.y,4); near(world.z,8);
         for (auto extrusion : {ExtrusionDirection{0,0,1}, ExtrusionDirection{0,0,-2}, ExtrusionDirection{1,2,3}}) {
-            const LWPolyline tilted({{0,0},{2,0}}, false, 0, 7, extrusion);
+            const LWPolylineEntity tilted({{0,0},{2,0}}, false, 0, 7, extrusion);
             const OCSFrame frame(extrusion);
             const auto target = frame.toWorld({4,-5},7), normal = frame.normal();
             const Vector3D start{target.x+100*normal.x,target.y+100*normal.y,target.z+100*normal.z};
@@ -58,7 +58,7 @@ int main()
             near(result.vertices()[0].x,4); near(result.vertices()[0].y,-5);
             check(tilted.vertices()[0].x == 0);
         }
-        const LWPolyline straight({{0,0,0,1,2,true},{2,0}},false,3,7);
+        const LWPolylineEntity straight({{0,0,0,1,2,true},{2,0}},false,3,7);
         const auto snapped = straight.withVertexAtVertex(0,1);
         check(snapped.vertices()[0].x == 2 && snapped.vertices()[0].startWidth == 1);
         rejects([&] { p.withVertexAtVertex(0,1); }); // coincident bulged endpoints

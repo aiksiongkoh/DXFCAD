@@ -1,8 +1,9 @@
+#include <DXFCAD/LWPolylineEntity.h>
 #include <DXFCAD/OCSFrame.h>
 
 namespace DXFCAD {
 
-std::vector<LWPolylineSegment3D> LWPolyline::worldSegments() const
+std::vector<LWPolylineSegment3D> LWPolylineEntity::worldSegments() const
 {
     const auto local = segments();
     const OCSFrame frame(extrusion_);

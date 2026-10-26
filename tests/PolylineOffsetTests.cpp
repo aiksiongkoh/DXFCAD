@@ -10,14 +10,14 @@ template<typename F> void rejects(F f) {
     try { f(); } catch (const std::exception&) { return; }
     throw std::runtime_error("Invalid curved offset accepted");
 }
-LWPolyline offset(const LWPolyline& source,double d) { return readLWPolyline(Drafting::offset(createLWPolyline(source),d)); }
+LWPolylineEntity offset(const LWPolylineEntity& source,double d) { return readLWPolyline(Drafting::offset(createLWPolyline(source),d)); }
 void concentric(const LWPolylineArc& a,const LWPolylineArc& b,double radius) {
     near(a.center.x,b.center.x); near(a.center.y,b.center.y); near(b.radius,radius);
 }
 }
 int main() {
     try {
-        const LWPolyline semicircle({{-5,0,1},{5,0}},false,2,7,{1,2,3});
+        const LWPolylineEntity semicircle({{-5,0,1},{5,0}},false,2,7,{1,2,3});
         const auto inside=offset(semicircle,1), outside=offset(semicircle,-2);
         near(inside.vertices()[0].x,-4); near(inside.vertices()[1].x,4);
         near(outside.vertices()[0].x,-7); near(outside.vertices()[1].x,7);
@@ -25,28 +25,28 @@ int main() {
         concentric(*semicircle.segments()[0].arc,*inside.segments()[0].arc,4);
         near(inside.constantWidth(),2); near(inside.elevation(),7); near(inside.extrusion().y,2);
         check(inside.worldSegments().size()==1,"Tilted offset failed to derive");
-        const LWPolyline clockwise({{-5,0,-1},{5,0}});
+        const LWPolylineEntity clockwise({{-5,0,-1},{5,0}});
         concentric(*clockwise.segments()[0].arc,*offset(clockwise,1).segments()[0].arc,6);
         check(offset(clockwise,1).vertices()[0].bulge==-1,"Clockwise sweep changed");
-        const LWPolyline major({{-5,0,2},{5,0}});
+        const LWPolylineEntity major({{-5,0,2},{5,0}});
         const auto majorOut=offset(major,-1);
         check(majorOut.vertices()[0].bulge==2,"Major arc became a minor arc");
         concentric(*major.segments()[0].arc,*majorOut.segments()[0].arc,major.segments()[0].arc->radius+1);
         // A common closed circle is encoded as two semicircles, not three vertices.
-        const LWPolyline circle({{-5,0,1},{5,0,1}},true);
+        const LWPolylineEntity circle({{-5,0,1},{5,0,1}},true);
         const auto ring=offset(circle,1);
         check(ring.closed() && ring.vertices().size()==2,"Closed two-arc topology changed");
         near(ring.segments()[0].arc->radius,4); near(ring.segments()[1].arc->radius,4);
-        near(offset(LWPolyline({{-5,0,-1},{5,0,-1}},true),1).segments()[0].arc->radius,6);
+        near(offset(LWPolylineEntity({{-5,0,-1},{5,0,-1}},true),1).segments()[0].arc->radius,6);
         // Mixed closed line/arc profile, including offsets that create major arcs.
-        const LWPolyline dShape({{-5,0},{5,0,1}},true);
+        const LWPolylineEntity dShape({{-5,0},{5,0,1}},true);
         const auto dIn=offset(dShape,1), dOut=offset(dShape,-1);
         near(dIn.vertices()[0].y,1); near(dIn.vertices()[1].x,std::sqrt(15.0));
         near(dIn.segments()[1].arc->radius,4);
         check(dOut.vertices()[1].bulge>1,"Outward join lost the major sweep");
         near(dOut.segments()[1].arc->radius,6);
         // Fillet-generated tangent LINE/ARC/LINE joins must remain tangent.
-        const auto elbow=createLWPolyline(LWPolyline({{0,0},{10,0},{10,10}}));
+        const auto elbow=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10}}));
         const auto fillet=readLWPolyline(Drafting::fillet(elbow,1,2));
         const auto inset=offset(fillet,1), outset=offset(fillet,-1);
         check(inset.vertices().size()==4 && outset.vertices().size()==4,"Tangent joins added vertices");
@@ -59,15 +59,15 @@ int main() {
             near(back.vertices()[i].bulge,fillet.vertices()[i].bulge);
         }
         // Non-tangent LINE/ARC and ARC/LINE joins use the nearest support hit.
-        const LWPolyline arcLine({{-5,0,1},{5,0},{10,0}});
+        const LWPolylineEntity arcLine({{-5,0,1},{5,0},{10,0}});
         const auto joined=offset(arcLine,1);
         near(joined.vertices()[1].x,std::sqrt(15.0)); near(joined.vertices()[1].y,1);
         near(joined.segments()[0].arc->radius,4);
-        const LWPolyline lineArc({{-10,0},{-5,0,1},{5,0}});
+        const LWPolylineEntity lineArc({{-10,0},{-5,0,1},{5,0}});
         const auto joinedStart=offset(lineArc,-1);
         near(joinedStart.vertices()[1].x,-std::sqrt(35.0)); near(joinedStart.vertices()[1].y,-1);
         near(joinedStart.segments()[1].arc->radius,6);
-        const LWPolyline twoArcs({{-5,0,1},{5,0,std::tan(std::acos(-1.0)/8)},{10,5}});
+        const LWPolylineEntity twoArcs({{-5,0,1},{5,0,std::tan(std::acos(-1.0)/8)},{10,5}});
         const auto arcJoin=offset(twoArcs,1);
         near(arcJoin.vertices()[1].x,(5+std::sqrt(7.0))/2);
         near(arcJoin.vertices()[1].y,(5-std::sqrt(7.0))/2);
@@ -75,7 +75,7 @@ int main() {
         const auto arcBridge=offset(twoArcs,2.8);
         check(arcBridge.vertices().size()==4,"Disjoint ARC/ARC supports were not bridged");
         near(arcBridge.segments()[1].arc->radius,2.8);
-        const auto sCurve=offset(LWPolyline({{-5,0,1},{5,0,-1},{15,0}}),1);
+        const auto sCurve=offset(LWPolylineEntity({{-5,0,1},{5,0,-1},{15,0}}),1);
         near(sCurve.vertices()[1].x,4); near(sCurve.segments()[0].arc->radius,4); near(sCurve.segments()[1].arc->radius,6);
         // An outside gap between disjoint supports needs an exact tangent arc
         // around the original corner. Its radius is the offset distance.
@@ -99,11 +99,11 @@ int main() {
         rejects([&] { offset(semicircle,5); });
         rejects([&] { offset(circle,6); });
         rejects([&] { offset(fillet,2); });
-        rejects([&] { offset(LWPolyline({{0,0},{0,0},{5,0}}),1); });
-        rejects([&] { offset(LWPolyline({{0,0},{5,0}},true),1); });
-        rejects([&] { offset(LWPolyline({{0,0},{5,5},{0,5},{5,0}},true),1); });
-        rejects([&] { offset(LWPolyline({{-5,0,1},{5,0,-1},{-5,0}}),1); });
-        const LWPolyline narrowNeck({{0,0,0.02},{20,0},{20,20},{12,20},{12,2},{8,2},{8,20},{0,20}},true);
+        rejects([&] { offset(LWPolylineEntity({{0,0},{0,0},{5,0}}),1); });
+        rejects([&] { offset(LWPolylineEntity({{0,0},{5,0}},true),1); });
+        rejects([&] { offset(LWPolylineEntity({{0,0},{5,5},{0,5},{5,0}},true),1); });
+        rejects([&] { offset(LWPolylineEntity({{-5,0,1},{5,0,-1},{-5,0}}),1); });
+        const LWPolylineEntity narrowNeck({{0,0,0.02},{20,0},{20,20},{12,20},{12,2},{8,2},{8,20},{0,20}},true);
         try {
             offset(narrowNeck,1.1);
             throw std::runtime_error("Self-crossing curved offset accepted");

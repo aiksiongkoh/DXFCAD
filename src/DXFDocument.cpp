@@ -1,4 +1,6 @@
 #include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/ParametricCurves.h>
+#include <DXFCAD/LegacyPolyline.h>
 #include <DXFCAD/SnapGeometry.h>
 #include <DXFCAD/Drafting.h>
 #include <DXFCAD/OCSFrame.h>
@@ -71,30 +73,6 @@ double radius(const DXFRecord& r)
     if (value <= 0) throw std::invalid_argument("DXF radius must be positive");
     return value;
 }
-LWPolyline polyline(const DXFRecord& record)
-{
-    std::vector<LWPolylineVertex> vertices;
-    bool hasY = true;
-    for (const auto& [code, value] : record.groups) {
-        if (code == 10) {
-            if (!hasY) throw std::invalid_argument("LWPolyline vertex lacks Y");
-            vertices.push_back({numeric(value), 0}); hasY = false;
-        } else if (code == 20 || code == 40 || code == 41 || code == 42) {
-            if (vertices.empty()) throw std::invalid_argument("LWPolyline vertex data precedes X");
-            auto& v = vertices.back();
-            const double n = numeric(value);
-            if (code == 20) { v.y = n; hasY = true; }
-            if (code == 40) { v.startWidth = n; v.hasWidths = true; }
-            if (code == 41) { v.endWidth = n; v.hasWidths = true; }
-            if (code == 42) v.bulge = n;
-        }
-    }
-    if (!hasY || record.integer(90, -1) != static_cast<int>(vertices.size())) {
-        throw std::invalid_argument("LWPolyline vertex count/coordinates are incomplete");
-    }
-    return LWPolyline(std::move(vertices), (record.integer(70)&1) != 0,
-                      record.number(43), record.number(38), extrusion(record));
-}
 // Application-defined 102 groups and XDATA are opaque, even if they contain
 // codes also used by ordinary entity geometry.
 DXFRecord nativeFields(const DXFRecord& record)
@@ -114,6 +92,14 @@ DXFRecord nativeFields(const DXFRecord& record)
 }
 std::string patchedStrings(const DXFRecord& record, const std::map<int,std::string>& formatted, const std::set<int>& removed = {})
 {
+    if (record.value(0)=="POLYLINE") {
+        auto at=record.groups.begin()+1;
+        while (at!=record.groups.end() && at->first!=0) ++at;
+        if (at!=record.groups.end()) {
+            const DXFRecord header{{record.groups.begin(),at}},children{{at,record.groups.end()}};
+            return patchedStrings(header,formatted,removed)+children.raw();
+        }
+    }
     DXFRecord result;
     std::set<int> written;
     auto missing = [&] { for (const auto& g : formatted) if (!written.count(g.first)) {
@@ -121,7 +107,7 @@ std::string patchedStrings(const DXFRecord& record, const std::map<int,std::stri
     }};
     const auto fields=nativeFields(record);
     const auto type=fields.value(0);
-    const bool entityRecord=type=="LINE" || type=="ARC" || type=="CIRCLE" || type=="LWPOLYLINE" || type=="TEXT" || type=="MTEXT" || type=="INSERT";
+    const bool entityRecord=type=="LINE" || type=="ARC" || type=="CIRCLE" || type=="LWPOLYLINE" || type=="TEXT" || type=="MTEXT" || type=="INSERT" || type=="ELLIPSE" || type=="SPLINE";
     bool hasEntitySubclass=false;
     for (const auto& g : fields.groups) if (g.first==100 && g.second=="AcDbEntity") hasEntitySubclass=true;
     auto common=[&] { for (int code : {8,60,62}) if (formatted.count(code) && fields.value(code).empty() && !written.count(code)) {
@@ -166,24 +152,6 @@ Vector3D rotateVector(const Vector3D& p, double angle) {
     const double c=std::cos(angle), s=std::sin(angle);
     return {c*p.x-s*p.y,s*p.x+c*p.y,p.z};
 }
-class PolylineEntity final : public DXFEntity {
-public:
-    using DXFEntity::DXFEntity;
-    std::string translated(const Vector3D& offset) const override {
-        return updateLWPolyline(raw(),polyline(nativeFields(record_)).translated(offset));
-    }
-    EntityGeometry geometry() const override { return {polyline(nativeFields(record_)).worldSegments(), {}, {}}; }
-    std::vector<DXFSnapPoint> snapPoints() const override {
-        std::vector<DXFSnapPoint> result;
-        for (const auto& p : polyline(nativeFields(record_)).worldVertices()) result.push_back({p,"vertex"});
-        const auto midpoints=SnapGeometry::midpoints(geometry());
-        result.insert(result.end(),midpoints.begin(),midpoints.end());
-        return result;
-    }
-    std::vector<LWPolylineWidthRegion> widthRegions(double tolerance) const override {
-        return polyline(nativeFields(record_)).widthRegions(tolerance);
-    }
-};
 class LineEntity final : public DXFEntity {
 public:
     using DXFEntity::DXFEntity;
@@ -214,7 +182,8 @@ public:
         const double start = record_.number(50)*pi/180.0;
         double degrees = std::fmod(record_.number(51)-record_.number(50), 360.0);
         if (degrees <= 0) degrees += 360;
-        if (degrees == 360) throw std::invalid_argument("ARC with equal angles is ambiguous; use CIRCLE");
+        if (degrees == 360 && record_.number(51)==record_.number(50))
+            throw std::invalid_argument("ARC with equal angles is ambiguous; use CIRCLE");
         const double sweep = degrees*pi/180.0;
         auto at = [&](double a) { return frame.toWorld({center.x+r*std::cos(a), center.y+r*std::sin(a)}, center.z); };
         const LWPolylineArc3D arc{frame.toWorld({center.x, center.y}, center.z),
@@ -391,7 +360,10 @@ private:
 std::shared_ptr<DXFEntity> entity(DXFRecord record, const std::string& context = "")
 {
     const auto type = record.value(0);
-    if (type == "LWPOLYLINE") return std::make_shared<PolylineEntity>(std::move(record));
+    if (type == "LWPOLYLINE") return std::make_shared<LWPolylineEntity>(std::move(record));
+    if (type == "POLYLINE") return std::make_shared<LegacyPolyline>(std::move(record));
+    if (type == "ELLIPSE") return std::make_shared<EllipseCurve>(std::move(record));
+    if (type == "SPLINE") return std::make_shared<SplineCurve>(std::move(record));
     if (type == "LINE") return std::make_shared<LineEntity>(std::move(record));
     if (type == "ARC") return std::make_shared<ArcEntity>(std::move(record));
     if (type == "CIRCLE") return std::make_shared<CircleEntity>(std::move(record));
@@ -565,6 +537,7 @@ DXFViewportView DXFViewport::modelView() const
 }
 std::string DXFEntity::mirrored(double degrees, const Vector3D& pivot) const
 {
+    if (type()=="POLYLINE") throw std::invalid_argument("Compound POLYLINE requires per-vertex native transformation; explode it first");
     if (!std::isfinite(degrees)) throw std::invalid_argument("Mirror line angle must be finite");
     finitePoint(pivot);
     translated({0,0,0});
@@ -576,6 +549,9 @@ std::string DXFEntity::mirrored(double degrees, const Vector3D& pivot) const
         auto v=reflect({p.x-pivot.x,p.y-pivot.y,p.z-pivot.z});
         Vector3D result{pivot.x+v.x,pivot.y+v.y,p.z}; finitePoint(result); return result;
     };
+    if (type()=="ELLIPSE" || type()=="SPLINE") {
+        return affineTransformedCurve(*this,{{},world({0,0,0}),reflect({1,0,0}),reflect({0,1,0}),reflect({0,0,1})});
+    }
     const auto oldNormal=extrusion(fields);
     auto normal=reflect({oldNormal.x,oldNormal.y,oldNormal.z});
     // A reflected frame changes handedness. Reversing its normal preserves
@@ -588,7 +564,7 @@ std::string DXFEntity::mirrored(double degrees, const Vector3D& pivot) const
         auto vertices=previous.vertices();
         double elevation=previous.elevation();
         for (auto& v : vertices) { const auto p=ocs({v.x,v.y,previous.elevation()}); v.x=p.x; v.y=p.y; elevation=p.z; }
-        auto result=updateLWPolyline(raw(),LWPolyline(vertices,previous.closed(),previous.constantWidth(),elevation,{normal.x,normal.y,normal.z}));
+        auto result=updateLWPolyline(raw(),LWPolylineEntity(vertices,previous.closed(),previous.constantWidth(),elevation,{normal.x,normal.y,normal.z}));
         if (!fields.value(39).empty()) result=patched(parseEntity(result)->record(),{{39,-fields.number(39)}});
         return result;
     }
@@ -638,6 +614,7 @@ double scaleFactor(const Vector3D& center, const Vector3D& target, double refere
 }
 std::string DXFEntity::scaled(double factor, const Vector3D& pivot) const
 {
+    if (type()=="POLYLINE") throw std::invalid_argument("Compound POLYLINE requires per-vertex native transformation; explode it first");
     if (!std::isfinite(factor) || factor<=0) throw std::invalid_argument("Scale factor must be positive and finite");
     finitePoint(pivot);
     translated({0,0,0});
@@ -649,10 +626,13 @@ std::string DXFEntity::scaled(double factor, const Vector3D& pivot) const
         finitePoint(result); return result;
     };
     auto ocs = [&](const Vector3D& p) { return frame.fromWorld(world(frame.toWorld({p.x,p.y},p.z))); };
+    if (type()=="ELLIPSE" || type()=="SPLINE") {
+        return affineTransformedCurve(*this,{{},world({0,0,0}),{factor,0,0},{0,factor,0},{0,0,factor}});
+    }
     if (type()=="LWPOLYLINE") {
         const auto previous=readLWPolyline(raw());
         const auto center=frame.fromWorld(pivot);
-        auto model=previous.scaled(factor,{center.x,center.y});
+        auto model=previous.scaledInPlane(factor,{center.x,center.y});
         model=model.withProperties(previous.closed(),model.constantWidth(),center.z+(previous.elevation()-center.z)*factor,previous.extrusion());
         auto result=updateLWPolyline(raw(),model);
         if (!fields.value(39).empty()) result=patched(parseEntity(result)->record(),{{39,fields.number(39)*factor}});
@@ -685,6 +665,7 @@ double rotationAngle(const Vector3D& center, const Vector3D& direction)
 }
 std::string DXFEntity::rotated(double degrees, const Vector3D& pivot) const
 {
+    if (type()=="POLYLINE") throw std::invalid_argument("Compound POLYLINE requires per-vertex native transformation; explode it first");
     if (!std::isfinite(degrees)) throw std::invalid_argument("Rotation angle must be finite");
     finitePoint(pivot);
     translated({0,0,0}); // Read-only entities cannot be transformed.
@@ -699,6 +680,9 @@ std::string DXFEntity::rotated(double degrees, const Vector3D& pivot) const
         Vector3D result{v.x+pivot.x,v.y+pivot.y,p.z}; finitePoint(result); return result;
     };
     auto ocs = [&](const Vector3D& p) { return frame.fromWorld(world(oldFrame.toWorld({p.x,p.y},p.z))); };
+    if (type()=="ELLIPSE" || type()=="SPLINE") {
+        return affineTransformedCurve(*this,{{},world({0,0,0}),rotateVector({1,0,0},angle),rotateVector({0,1,0},angle),{0,0,1}});
+    }
     if (type()=="LWPOLYLINE") {
         const auto previous=readLWPolyline(raw());
         auto vertices=previous.vertices();
@@ -707,7 +691,7 @@ std::string DXFEntity::rotated(double degrees, const Vector3D& pivot) const
             const auto p=ocs({vertex.x,vertex.y,previous.elevation()});
             vertex.x=p.x; vertex.y=p.y; elevation=p.z;
         }
-        return updateLWPolyline(raw(),LWPolyline(vertices,previous.closed(),previous.constantWidth(),elevation,{normal.x,normal.y,normal.z}));
+        return updateLWPolyline(raw(),LWPolylineEntity(vertices,previous.closed(),previous.constantWidth(),elevation,{normal.x,normal.y,normal.z}));
     }
     std::map<int,double> values;
     auto put = [&](int code,Vector3D p) { values[code]=p.x; values[code+10]=p.y; values[code+20]=p.z; };
@@ -751,6 +735,7 @@ std::string DXFEntity::copied(const Vector3D& offset) const
     int depth = 0, skipDepth = 0;
     bool xdata = false;
     for (const auto& g : source.groups) {
+        if (g.first == 0) { xdata=false; depth=0; skipDepth=0; }
         if (g.first == 1001 && depth == 0) xdata = true;
         if (!xdata && g.first == 102) {
             if (!g.second.empty() && g.second.front() == '{') {
@@ -873,83 +858,24 @@ std::shared_ptr<DXFEntity> parseEntity(const std::string& raw, const std::string
 {
     auto record = groups(raw);
     if (record.groups.empty() || record.groups.front().first != 0) throw std::invalid_argument("Missing DXF entity type");
-    for (std::size_t i = 1; i < record.groups.size(); ++i)
+    if (record.value(0)!="POLYLINE") for (std::size_t i = 1; i < record.groups.size(); ++i)
         if (record.groups[i].first == 0) throw std::invalid_argument("Expected exactly one DXF entity");
     return entity(std::move(record), context);
 }
-LWPolyline readLWPolyline(const std::string& raw)
+LWPolylineEntity readLWPolyline(const std::string& raw)
 {
-    const auto e = parseEntity(raw);
-    if (e->type() != "LWPOLYLINE") throw std::invalid_argument("Expected LWPOLYLINE data");
-    return polyline(nativeFields(e->record()));
+    return LWPolylineEntity::fromRaw(raw);
 }
 
-std::string updateLWPolyline(const std::string& raw, const LWPolyline& p, const std::vector<int>& origins)
+std::string updateLWPolyline(const std::string& raw, const LWPolylineEntity& polyline,
+                             const std::vector<int>& origins)
 {
-    const auto previous = readLWPolyline(raw);
-    const auto record = parseEntity(raw)->record();
-    const auto fields = nativeFields(record);
-    std::vector<std::string> ids(previous.vertices().size());
-    std::size_t vertex = 0;
-    bool seenVertex = false;
-    for (const auto& g : fields.groups) {
-        if (g.first == 10) { if (seenVertex) ++vertex; seenVertex = true; }
-        if (g.first == 91 && seenVertex) ids.at(vertex) = g.second;
-    }
-    if (!origins.empty() && origins.size() != p.vertices().size())
-        throw std::invalid_argument("Vertex origins must match the new vertex count");
-    if (origins.empty() && previous.vertices().size() != p.vertices().size())
-        throw std::invalid_argument("Supply vertex origins when changing vertex count");
-    std::set<int> used;
-    for (int origin : origins) {
-        if (origin < -1 || origin >= static_cast<int>(ids.size()) || (origin >= 0 && !used.insert(origin).second))
-            throw std::invalid_argument("Invalid or repeated vertex origin");
-    }
-    auto number = [](double value) {
-        std::ostringstream out;
-        out.imbue(std::locale::classic());
-        out << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
-        return out.str();
-    };
-    DXFRecord geometry;
-    auto add = [&](int code, double value) { geometry.groups.emplace_back(code, number(value)); };
-    geometry.groups.emplace_back(90, std::to_string(p.vertices().size()));
-    geometry.groups.emplace_back(70, std::to_string((fields.integer(70)&~1) | (p.closed() ? 1 : 0)));
-    add(43, p.constantWidth()); add(38, p.elevation());
-    std::size_t index = 0;
-    for (const auto& v : p.vertices()) {
-        add(10, v.x); add(20, v.y);
-        if (v.hasWidths || v.startWidth != 0 || v.endWidth != 0) { add(40, v.startWidth); add(41, v.endWidth); }
-        add(42, v.bulge);
-        const int origin = origins.empty() ? static_cast<int>(index) : origins[index];
-        if (origin >= 0 && !ids[origin].empty()) geometry.groups.emplace_back(91, ids[origin]);
-        ++index;
-    }
-    add(210, p.extrusion().x); add(220, p.extrusion().y); add(230, p.extrusion().z);
-    const std::set<int> replaced{90,70,43,38,10,20,40,41,42,91,210,220,230};
-    DXFRecord result;
-    bool inserted = false, xdata = false;
-    int depth = 0;
-    auto insert = [&] {
-        if (!inserted) result.groups.insert(result.groups.end(), geometry.groups.begin(), geometry.groups.end());
-        inserted = true;
-    };
-    for (const auto& g : record.groups) {
-        if (g.first == 1001 && !depth) { insert(); xdata = true; }
-        if (g.first == 102 && !xdata) {
-            if (!g.second.empty() && g.second.front() == '{') ++depth;
-            else if (g.second == "}" && depth) --depth;
-            result.groups.push_back(g);
-        } else if (!xdata && !depth && replaced.count(g.first)) insert();
-        else result.groups.push_back(g);
-    }
-    insert();
-    // Validate derived geometry as well as native values before exposing an edit.
-    parseEntity(result.raw())->geometry();
+    const auto result = LWPolylineEntity::fromRaw(raw).withGeometry(polyline, origins);
+    result.geometry();
     return result.raw();
 }
 
-std::string createLWPolyline(const LWPolyline& p, const std::string& layer)
+std::string createLWPolyline(const LWPolylineEntity& p, const std::string& layer)
 {
     if (p.vertices().size() < 2) throw std::invalid_argument("A new LWPolyline requires at least two vertices");
     if (layer.empty() || layer.find_first_of("\r\n") != std::string::npos)
@@ -963,7 +889,7 @@ std::string createRectangle(const Vector3D& first, const Vector3D& opposite, con
     finitePoint(first);
     const auto b=pointInXYPlane(opposite,first.z);
     if (first.x==b.x || first.y==b.y) throw std::invalid_argument("Rectangle width and height must be nonzero");
-    return createLWPolyline(LWPolyline({{first.x,first.y},{b.x,first.y},{b.x,b.y},{first.x,b.y}},true,0,first.z),layer);
+    return createLWPolyline(LWPolylineEntity({{first.x,first.y},{b.x,first.y},{b.x,b.y},{first.x,b.y}},true,0,first.z),layer);
 }
 std::string createLine(const Vector3D& start, const Vector3D& end, const std::string& layer)
 {
@@ -1109,6 +1035,17 @@ DXFDocument DXFDocument::parse(const std::string& ascii)
             DXFRecord record;
             record.groups.push_back(all.groups[i++]);
             while (i < all.groups.size() && all.groups[i].first != 0) record.groups.push_back(all.groups[i++]);
+            if (section=="ENTITIES" && value=="POLYLINE") {
+                // A compound polyline owns its VERTEX/SEQEND sequence. Its
+                // complete source range is one stable document slot.
+                while (i<all.groups.size() && all.groups[i].first==0 &&
+                       (all.groups[i].second=="VERTEX" || all.groups[i].second=="SEQEND")) {
+                    const bool last=all.groups[i].second=="SEQEND";
+                    record.groups.push_back(all.groups[i++]);
+                    while (i<all.groups.size() && all.groups[i].first!=0) record.groups.push_back(all.groups[i++]);
+                    if (last) break;
+                }
+            }
             if (section == "TABLES") {
                 const int color = record.integer(62, 7);
                 DXFLayer layer{record.value(2), std::abs(color), record.integer(420, -1),
@@ -1228,7 +1165,7 @@ std::string DXFDocument::serialize(const std::map<std::size_t, std::string>& rep
     std::string additions;
     for (const auto& raw : added) {
         const auto e = resolveEntity(raw);
-        if (e->type() != "LWPOLYLINE" && e->type() != "LINE" && e->type() != "CIRCLE" && e->type() != "ARC" && e->type() != "TEXT" && e->type() != "MTEXT" && e->type() != "INSERT") throw std::invalid_argument("Unsupported new entity type");
+        if (e->type() != "LWPOLYLINE" && e->type() != "LINE" && e->type() != "CIRCLE" && e->type() != "ARC" && e->type() != "TEXT" && e->type() != "MTEXT" && e->type() != "INSERT" && e->type() != "ELLIPSE" && e->type() != "SPLINE") throw std::invalid_argument("Unsupported new entity type");
         if (e->type() == "LWPOLYLINE" && readLWPolyline(raw).vertices().size() < 2) throw std::invalid_argument("Export requires at least two polyline vertices");
         if (e->type() == "LINE") {
             const auto fields = nativeFields(e->record());

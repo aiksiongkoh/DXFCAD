@@ -1,4 +1,5 @@
 #include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/ParametricCurves.h>
 #include <DXFCAD/Drafting.h>
 #include <DXFCAD/SnapGeometry.h>
 #include <DXFCAD/Contour.h>
@@ -28,6 +29,26 @@ py::object shape(const DXFEntity& entity, const std::string& fontFile, bool show
 {
     const auto geometry = entity.geometry();
     const auto part = py::module_::import("Part");
+    if (const auto* ellipse=dynamic_cast<const EllipseCurve*>(&entity)) {
+        const auto c=ellipse->center(),a=ellipse->majorAxis(),b=ellipse->minorAxis();
+        const auto curve=part.attr("Ellipse")(vector({c.x+a.x,c.y+a.y,c.z+a.z}),vector({c.x+b.x,c.y+b.y,c.z+b.z}),vector(c));
+        return curve.attr("toShape")(ellipse->startParameter(),ellipse->endParameter());
+    }
+    if (const auto* spline=dynamic_cast<const SplineCurve*>(&entity)) {
+        py::list poles,knots,multiplicities,weights;
+        for (const auto p : spline->controlPoints()) poles.append(vector(p));
+        for (const auto w : spline->weights()) weights.append(w);
+        std::vector<double> unique; std::vector<int> counts;
+        for (const auto k : spline->knots()) {
+            if (unique.empty() || unique.back()!=k) { unique.push_back(k); counts.push_back(1); }
+            else ++counts.back();
+        }
+        for (const auto k : unique) knots.append(k);
+        for (const auto m : counts) multiplicities.append(m);
+        const auto curve=part.attr("BSplineCurve")();
+        curve.attr("buildFromPolesMultsKnots")(poles,multiplicities,knots,spline->periodic(),spline->degree(),weights);
+        return curve.attr("toShape")();
+    }
     py::list edges;
     for (const auto& instance : entity.blockParts()) {
         const auto child=shape(*instance.entity,fontFile,true);
@@ -917,8 +938,8 @@ public:
     }
     py::object object() const { return snapshot_.object(); }
     const std::string& originalData() const { return snapshot_.originalData(); }
-    LWPolyline polyline() const { return readLWPolyline(originalData()); }
-    std::unique_ptr<EntityUpdatePlan> prepare(const LWPolyline& polyline,const std::vector<int>& origins) const {
+    LWPolylineEntity polyline() const { return readLWPolyline(originalData()); }
+    std::unique_ptr<EntityUpdatePlan> prepare(const LWPolylineEntity& polyline,const std::vector<int>& origins) const {
         snapshot_.validateCurrent();
         auto raw=updateLWPolyline(originalData(),polyline,origins);
         return std::make_unique<EntityUpdatePlan>(std::vector<py::object>{object()},std::vector<std::string>{raw});
@@ -1306,7 +1327,7 @@ void bindFreeCAD(py::module_& module)
     module.def("begin_polyline_edit",[](py::object object) {
         return std::make_unique<PolylineEditSession>(object);
     },py::arg("entity"),"Capture the original LWPolyline and drawing state without mutation.");
-    module.def("prepare_polyline_edit",[](py::object object,const LWPolyline& polyline,const std::vector<int>& origins) {
+    module.def("prepare_polyline_edit",[](py::object object,const LWPolylineEntity& polyline,const std::vector<int>& origins) {
         return PolylineEditSession(object).prepare(polyline,origins);
     },py::arg("entity"),py::arg("polyline"),py::arg("origins")=std::vector<int>{},
        "Prepare a validated LWPolyline replacement from the current object state.");
@@ -1443,7 +1464,7 @@ void bindFreeCAD(py::module_& module)
     }, py::arg("center"), py::arg("radius"));
     module.def("point_on_xy_plane", &pointOnXYPlane, py::arg("start"), py::arg("end"), py::arg("elevation") = 0);
     module.def("point_in_xy_plane", &pointInXYPlane, py::arg("point"), py::arg("elevation") = 0);
-    module.def("polyline_preview_shape", [](const LWPolyline& polyline) {
+    module.def("polyline_preview_shape", [](const LWPolylineEntity& polyline) {
         return shape(*parseEntity(createLWPolyline(polyline)), "", false);
     }, py::arg("polyline"), "Derive a temporary centerline Part shape without creating a document object.");
     module.def("create_feature", [](py::object document, const DXFEntity& entity, const std::string& font) {

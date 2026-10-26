@@ -12,7 +12,7 @@ FreeCADGui.activateWorkbench("DXFCADWorkbench")
 assert "DXFCAD_Chamfer" in FreeCADGui.listCommands()
 profile=Path(FreeCAD.getUserAppDataDir())
 doc=FreeCAD.newDocument("Chamfers")
-obj=create_polyline(doc,DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)],False,0,2))
+obj=create_polyline(doc,DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)],False,0,2))
 original=obj.DXFData
 panel=show_drafting_tool(ChamferTaskPanel,[obj])
 panel.amount.setText("2")
@@ -60,7 +60,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
 print("Polyline chamfer: preview, distance validation, undo/redo, persistence and export passed.")
 
 doc=FreeCAD.newDocument("StaleChamferPreview")
-obj=create_polyline(doc,DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)]))
+obj=create_polyline(doc,DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)]))
 panel=show_drafting_tool(ChamferTaskPanel,[obj])
 panel.preview()
 assert not panel.error.text(),panel.error.text()

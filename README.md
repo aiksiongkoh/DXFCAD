@@ -16,16 +16,35 @@ specialized downstream workbench that uses DXFCAD's APIs.
 
 ## Current scope
 
-LWPolyline is the first implemented C++ domain entity. It preserves vertices,
-bulges, constant and per-segment widths, closed state, elevation, and extrusion
-direction. Python task panels provide vertex editing and native transforms.
+`LWPolylineEntity` is the first implemented C++ domain entity. It preserves
+vertices, bulges, constant and per-segment widths, closed state, elevation, and
+extrusion direction. Python task panels provide vertex editing and native transforms.
 
 The workbench includes a standalone C++ domain library and Python UI entry points.
-`DXFCAD::LWPolyline` owns native OCS vertex data, bulges, constant and per-segment
-widths, closed state, elevation, and extrusion direction. Construction rejects
-nonfinite values, negative widths, and a zero extrusion direction, without
-normalizing or deriving geometry from the stored values. Empty polylines are
-allowed as an initial editing state.
+`DXFCAD::LWPolylineEntity : DXFCAD::DXFEntity` owns the authoritative native DXF
+record and provides OCS vertices, bulges, constant and per-segment widths, closed
+state, elevation, extrusion direction, geometry, snapping, and editing behavior.
+`DXFEntity` is declared in `DXFEntity.h`, and `LWPolylineEntity` in
+`LWPolylineEntity.h`. Both C++ and Python use the name `LWPolylineEntity`.
+Construction rejects nonfinite values, negative widths, and a zero extrusion
+direction. Coordinates, bulges, elevation, and extrusion values are preserved;
+geometry is derived separately. Empty polylines are allowed as an initial editing
+state.
+
+`parseEntity()` / Python `parse_entity()` now return an `LWPolylineEntity` for
+LWPOLYLINE records. `fromRaw()` / `from_raw()` retains the complete native record.
+Vertex/property edits and object-returning transforms preserve handles, owners,
+unknown fields, XDATA, non-closure flags, and surviving vertex IDs. Insertion and
+removal track vertex IDs automatically. The `readLWPolyline`, `updateLWPolyline`,
+and `createLWPolyline` free functions remain available.
+
+Object-returning polyline transforms are `moved`, `rotatedInPlane`,
+`scaledInPlane`, and `mirroredInPlane` in C++, and `moved`, `rotated_in_plane`,
+`scaled_in_plane`, and `mirrored_in_plane` in Python. Plane rotation uses
+radians and OCS pivots. Inherited `DXFEntity` methods
+`translated/rotated/scaled/mirrored` retain their DXF-text return values, WCS
+pivots, and degree-based angles. The polyline editing UI uses the object-returning
+methods; its controls and workflow are unchanged.
 
 The domain library also has optional native Python bindings and derives OCS and
 world-coordinate centerline segments in C++. Native DXF import and FreeCAD
@@ -41,7 +60,7 @@ No FreeCAD or XynaCAD source changes are needed.
 
 LWPolyline also has a native FreeCAD document object, enabled with
 `DXFCAD_BUILD_NATIVE_OBJECTS=ON`. Its inheritance is
-`App::DocumentObject -> Part::Feature -> DXFCAD::DXFEntityObject -> DXFCAD::LWPolylineObject`.
+`App::DocumentObject -> App::GeoFeature -> Part::Feature -> DXFCAD::DXFEntityObject -> DXFCAD::LWPolylineObject`.
 The shared base owns persistent DXF properties, recomputation, error handling,
 and restoration in C++. LWPolyline specializes width/centerline rendering and
 its `ShowWidths` property; Python provides its view provider and UI workflow.
@@ -608,7 +627,7 @@ import sys
 sys.path.insert(0, "C:/path/to/DXFCAD/build/python")
 import DXFCAD
 
-polyline = DXFCAD.LWPolyline(
+polyline = DXFCAD.LWPolylineEntity(
     vertices=[
         DXFCAD.LWPolylineVertex(x=0, y=0, bulge=0.5),
         DXFCAD.LWPolylineVertex(x=10, y=0, start_width=1, end_width=2),
@@ -624,10 +643,10 @@ print(polyline.vertices[0].bulge)
 Properties are read-only. `vertices` returns a list of copied vertex values;
 `extrusion` returns a copied direction. Changing the list cannot alter native
 state, and snapshots remain valid after the polyline is released. Vertex and
-direction values are validated by the C++ LWPolyline constructor when assembled
-into an entity. Domain validation failures become Python `ValueError`; invalid
-argument types become `TypeError`. No geometry or validation is implemented in
-Python. The binding tests cover these behaviors through the compiled module.
+direction values are validated by the C++ `LWPolylineEntity` constructor when
+assembled into an entity. Domain validation failures become Python `ValueError`;
+invalid argument types become `TypeError`. No geometry or validation is implemented
+in Python. The binding tests cover these behaviors through the compiled module.
 
 ## Derived OCS centerlines
 
@@ -1423,6 +1442,15 @@ Gui.activeDocument().activeView().fitAll()
 ## Install and check the workbench
 
 ### Launch from VS Code on Windows
+
+For C++ IntelliSense, the workspace uses `build/native/compile_commands.json`
+from the native FreeCAD SDK configuration described above. After configuring
+that build, generate the database with
+`cmake -S . -B build/native -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`.
+The CMake Tools workspace settings preserve this option on later configurations.
+This supplies the actual compiler flags and FreeCAD/dependency include paths,
+including those needed by the native object headers. If VS Code retains stale
+include errors, run **C/C++: Reset IntelliSense Database** from the Command Palette.
 
 Open this repository in VS Code, then select **Run and Debug** (`Ctrl+Shift+D`):
 

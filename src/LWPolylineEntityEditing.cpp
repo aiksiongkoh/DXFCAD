@@ -1,3 +1,4 @@
+#include <DXFCAD/LWPolylineEntity.h>
 #include <DXFCAD/OCSFrame.h>
 #include <cmath>
 #include <stdexcept>
@@ -11,32 +12,38 @@ void finite(double v) {
 void finite(Point2D p) { finite(p.x); finite(p.y); }
 }
 
-LWPolyline LWPolyline::withVertex(std::size_t index, LWPolylineVertex vertex) const
+LWPolylineEntity LWPolylineEntity::withVertex(std::size_t index, LWPolylineVertex vertex) const
 {
     auto result = vertices_;
     result.at(index) = vertex;
-    return LWPolyline(std::move(result), closed_, constantWidth_, elevation_, extrusion_);
+    return withGeometry(LWPolylineEntity(std::move(result), closed_, constantWidth_, elevation_, extrusion_));
 }
-LWPolyline LWPolyline::insertedVertex(std::size_t index, LWPolylineVertex vertex) const
+LWPolylineEntity LWPolylineEntity::insertedVertex(std::size_t index, LWPolylineVertex vertex) const
 {
     if (index > vertices_.size()) throw std::out_of_range("Vertex insertion index");
     auto result = vertices_;
     result.insert(result.begin() + index, vertex);
-    return LWPolyline(std::move(result), closed_, constantWidth_, elevation_, extrusion_);
+    std::vector<int> origins(result.size());
+    for (std::size_t i = 0; i < origins.size(); ++i)
+        origins[i] = i == index ? -1 : static_cast<int>(i < index ? i : i-1);
+    return withGeometry(LWPolylineEntity(std::move(result), closed_, constantWidth_, elevation_, extrusion_), origins);
 }
-LWPolyline LWPolyline::removedVertex(std::size_t index) const
+LWPolylineEntity LWPolylineEntity::removedVertex(std::size_t index) const
 {
     if (index >= vertices_.size()) throw std::out_of_range("Vertex removal index");
     auto result = vertices_;
     result.erase(result.begin() + index);
-    return LWPolyline(std::move(result), closed_, constantWidth_, elevation_, extrusion_);
+    std::vector<int> origins(result.size());
+    for (std::size_t i = 0; i < origins.size(); ++i)
+        origins[i] = static_cast<int>(i < index ? i : i+1);
+    return withGeometry(LWPolylineEntity(std::move(result), closed_, constantWidth_, elevation_, extrusion_), origins);
 }
-LWPolyline LWPolyline::withProperties(bool closed, double width, double elevation,
+LWPolylineEntity LWPolylineEntity::withProperties(bool closed, double width, double elevation,
                                       ExtrusionDirection extrusion) const
 {
-    return LWPolyline(vertices_, closed, width, elevation, extrusion);
+    return withGeometry(LWPolylineEntity(vertices_, closed, width, elevation, extrusion));
 }
-LWPolyline LWPolyline::translated(Vector3D offset) const
+LWPolylineEntity LWPolylineEntity::moved(Vector3D offset) const
 {
     finite(offset.x); finite(offset.y); finite(offset.z);
     const OCSFrame frame(extrusion_);
@@ -44,9 +51,9 @@ LWPolyline LWPolyline::translated(Vector3D offset) const
     const double dx = dot(frame.xAxis()), dy = dot(frame.yAxis());
     auto result = vertices_;
     for (auto& v : result) { v.x += dx; v.y += dy; }
-    return LWPolyline(std::move(result), closed_, constantWidth_, elevation_+dot(frame.normal()), extrusion_);
+    return withGeometry(LWPolylineEntity(std::move(result), closed_, constantWidth_, elevation_+dot(frame.normal()), extrusion_));
 }
-LWPolyline LWPolyline::rotated(double angle, Point2D pivot) const
+LWPolylineEntity LWPolylineEntity::rotatedInPlane(double angle, Point2D pivot) const
 {
     finite(angle); finite(pivot);
     const double c = std::cos(angle), s = std::sin(angle);
@@ -55,9 +62,9 @@ LWPolyline LWPolyline::rotated(double angle, Point2D pivot) const
         const double x = v.x-pivot.x, y = v.y-pivot.y;
         v.x = pivot.x+c*x-s*y; v.y = pivot.y+s*x+c*y;
     }
-    return LWPolyline(std::move(result), closed_, constantWidth_, elevation_, extrusion_);
+    return withGeometry(LWPolylineEntity(std::move(result), closed_, constantWidth_, elevation_, extrusion_));
 }
-LWPolyline LWPolyline::scaled(double factor, Point2D pivot) const
+LWPolylineEntity LWPolylineEntity::scaledInPlane(double factor, Point2D pivot) const
 {
     finite(factor); finite(pivot);
     if (factor == 0) throw std::invalid_argument("Scale factor must be nonzero");
@@ -66,9 +73,9 @@ LWPolyline LWPolyline::scaled(double factor, Point2D pivot) const
         v.x = pivot.x+(v.x-pivot.x)*factor; v.y = pivot.y+(v.y-pivot.y)*factor;
         v.startWidth *= std::abs(factor); v.endWidth *= std::abs(factor);
     }
-    return LWPolyline(std::move(result), closed_, constantWidth_*std::abs(factor), elevation_, extrusion_);
+    return withGeometry(LWPolylineEntity(std::move(result), closed_, constantWidth_*std::abs(factor), elevation_, extrusion_));
 }
-LWPolyline LWPolyline::mirrored(Point2D start, Point2D end) const
+LWPolylineEntity LWPolylineEntity::mirroredInPlane(Point2D start, Point2D end) const
 {
     finite(start); finite(end);
     const double dx = end.x-start.x, dy = end.y-start.y, length = std::hypot(dx, dy);
@@ -80,9 +87,9 @@ LWPolyline LWPolyline::mirrored(Point2D start, Point2D end) const
         v.x = start.x+2*projection*ux-x; v.y = start.y+2*projection*uy-y;
         v.bulge = -v.bulge;
     }
-    return LWPolyline(std::move(result), closed_, constantWidth_, elevation_, extrusion_);
+    return withGeometry(LWPolylineEntity(std::move(result), closed_, constantWidth_, elevation_, extrusion_));
 }
-std::vector<Vector3D> LWPolyline::worldVertices() const
+std::vector<Vector3D> LWPolylineEntity::worldVertices() const
 {
     const OCSFrame frame(extrusion_);
     std::vector<Vector3D> result;
@@ -90,7 +97,7 @@ std::vector<Vector3D> LWPolyline::worldVertices() const
     for (const auto& v : vertices_) result.push_back(frame.toWorld({v.x,v.y}, elevation_));
     return result;
 }
-LWPolyline LWPolyline::withVertexOnLine(std::size_t index, Vector3D start, Vector3D end) const
+LWPolylineEntity LWPolylineEntity::withVertexOnLine(std::size_t index, Vector3D start, Vector3D end) const
 {
     auto vertex = vertices_.at(index);
     const auto point = OCSFrame(extrusion_).intersectLine(start, end, elevation_);
@@ -99,7 +106,7 @@ LWPolyline LWPolyline::withVertexOnLine(std::size_t index, Vector3D start, Vecto
     result.worldSegments();
     return result;
 }
-LWPolyline LWPolyline::withVertexAtVertex(std::size_t index, std::size_t target) const
+LWPolylineEntity LWPolylineEntity::withVertexAtVertex(std::size_t index, std::size_t target) const
 {
     auto vertex = vertices_.at(index);
     const auto& destination = vertices_.at(target);
@@ -108,7 +115,7 @@ LWPolyline LWPolyline::withVertexAtVertex(std::size_t index, std::size_t target)
     result.worldSegments();
     return result;
 }
-LWPolyline LWPolyline::withVertexAtWorldPoint(std::size_t index, Vector3D point, double planeTolerance) const
+LWPolylineEntity LWPolylineEntity::withVertexAtWorldPoint(std::size_t index, Vector3D point, double planeTolerance) const
 {
     auto vertex = vertices_.at(index);
     if (!std::isfinite(planeTolerance) || planeTolerance < 0)

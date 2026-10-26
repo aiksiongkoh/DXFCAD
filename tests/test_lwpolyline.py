@@ -15,8 +15,33 @@ import unittest
 
 
 class LWPolylineBindingsTests(unittest.TestCase):
+    def test_entity_hierarchy_and_record_preserving_edits(self):
+        self.assertTrue(issubclass(DXFCAD.LWPolylineEntity, DXFCAD.DXFEntity))
+        raw = ("0\nLWPOLYLINE\n5\nA1\n8\nCurves\n90\n2\n70\n128\n"
+               "10\n0\n20\n0\n91\n11\n42\n1\n10\n2\n20\n0\n91\n22\n"
+               "1001\nAPP\n1000\nkeep xdata\n")
+        entity = DXFCAD.parse_entity(raw)
+        self.assertIsInstance(entity, DXFCAD.LWPolylineEntity)
+        self.assertEqual(entity.raw, raw)
+        moved = entity.moved(DXFCAD.Vector3D(1, 2, 3))
+        self.assertEqual(entity.translated(DXFCAD.Vector3D(1, 2, 3)), moved.raw)
+        self.assertEqual((moved.vertices[0].x, moved.vertices[0].y, moved.elevation), (1, 2, 3))
+        edited = moved.inserted_vertex(1, DXFCAD.LWPolylineVertex(2, 4)).removed_vertex(0)
+        self.assertEqual((edited.type, edited.layer, edited.handle), ("LWPOLYLINE", "Curves", "A1"))
+        self.assertNotIn("91\n11\n", edited.raw)
+        self.assertIn("91\n22\n", edited.raw)
+        self.assertIn("1001\nAPP\n1000\nkeep xdata\n", edited.raw)
+        self.assertEqual(entity.raw, raw)
+        self.assertIsInstance(DXFCAD.LWPolylineEntity.from_raw(edited.raw), DXFCAD.DXFEntity)
+        rotated = DXFCAD.parse_entity(entity.rotated(90, DXFCAD.Vector3D()))
+        self.assertAlmostEqual(rotated.vertices[1].x, 0)
+        self.assertAlmostEqual(rotated.vertices[1].y, 2)
+        in_plane = entity.rotated_in_plane(math.pi / 2)
+        self.assertAlmostEqual(in_plane.vertices[1].y, 2)
+        self.assertIsInstance(entity.copied(DXFCAD.Vector3D(1, 0, 0)), str)
+
     def test_defaults(self):
-        polyline = DXFCAD.LWPolyline()
+        polyline = DXFCAD.LWPolylineEntity()
         self.assertEqual(polyline.vertices, [])
         self.assertFalse(polyline.closed)
         self.assertEqual(polyline.constant_width, 0.0)
@@ -36,7 +61,7 @@ class LWPolylineBindingsTests(unittest.TestCase):
             DXFCAD.LWPolylineVertex(1.25, -2.5, -0.5, 0.25, 0.75),
             DXFCAD.LWPolylineVertex(x=9, y=3, bulge=2, start_width=1.5, end_width=2.5),
         ]
-        polyline = DXFCAD.LWPolyline(
+        polyline = DXFCAD.LWPolylineEntity(
             vertices=vertices, closed=True, constant_width=4, elevation=-7.5,
             extrusion=DXFCAD.ExtrusionDirection(2, -3, 4),
         )
@@ -53,7 +78,7 @@ class LWPolylineBindingsTests(unittest.TestCase):
         self.assertEqual(self.direction_values(polyline.extrusion), (2, -3, 4))
 
     def test_snapshots_outlive_polyline(self):
-        polyline = DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(4, 5)])
+        polyline = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(4, 5)])
         vertex = polyline.vertices[0]
         direction = polyline.extrusion
         del polyline
@@ -62,7 +87,7 @@ class LWPolylineBindingsTests(unittest.TestCase):
         self.assertEqual(self.direction_values(direction), (0, 0, 1))
 
     def test_read_only_native_state(self):
-        polyline = DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(4, 5)])
+        polyline = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(4, 5)])
         for name, value in [
             ("vertices", []), ("closed", True), ("constant_width", -1),
             ("elevation", 2), ("extrusion", DXFCAD.ExtrusionDirection()),
@@ -80,34 +105,34 @@ class LWPolylineBindingsTests(unittest.TestCase):
                 with self.subTest(field=field, value=invalid):
                     with self.assertRaises(ValueError):
                         if field == "constant_width":
-                            DXFCAD.LWPolyline(constant_width=invalid)
+                            DXFCAD.LWPolylineEntity(constant_width=invalid)
                         else:
                             vertex = DXFCAD.LWPolylineVertex(**{field: invalid})
-                            DXFCAD.LWPolyline([vertex])
+                            DXFCAD.LWPolylineEntity([vertex])
         for invalid in [float("nan"), float("inf"), -float("inf")]:
             with self.assertRaises(ValueError):
-                DXFCAD.LWPolyline(elevation=invalid)
+                DXFCAD.LWPolylineEntity(elevation=invalid)
             for field in ["x", "y", "bulge"]:
                 with self.subTest(field=field, value=invalid), self.assertRaises(ValueError):
-                    DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(**{field: invalid})])
+                    DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(**{field: invalid})])
             for field in ["x", "y", "z"]:
                 with self.subTest(field=field, value=invalid), self.assertRaises(ValueError):
-                    DXFCAD.LWPolyline(extrusion=DXFCAD.ExtrusionDirection(**{field: invalid}))
+                    DXFCAD.LWPolylineEntity(extrusion=DXFCAD.ExtrusionDirection(**{field: invalid}))
         with self.assertRaises(ValueError):
-            DXFCAD.LWPolyline(extrusion=DXFCAD.ExtrusionDirection(0, 0, 0))
+            DXFCAD.LWPolylineEntity(extrusion=DXFCAD.ExtrusionDirection(0, 0, 0))
 
     def test_wrong_types_become_type_error(self):
         for construct in [
-            lambda: DXFCAD.LWPolyline(vertices=[object()]),
-            lambda: DXFCAD.LWPolyline(extrusion=(0, 0, 1)),
+            lambda: DXFCAD.LWPolylineEntity(vertices=[object()]),
+            lambda: DXFCAD.LWPolylineEntity(extrusion=(0, 0, 1)),
             lambda: DXFCAD.LWPolylineVertex(x="invalid"),
-            lambda: DXFCAD.LWPolyline(unknown_argument=True),
+            lambda: DXFCAD.LWPolylineEntity(unknown_argument=True),
         ]:
             with self.assertRaises(TypeError):
                 construct()
 
     def test_segments_and_geometry_errors(self):
-        polyline = DXFCAD.LWPolyline([
+        polyline = DXFCAD.LWPolylineEntity([
             DXFCAD.LWPolylineVertex(0, 0, 1),
             DXFCAD.LWPolylineVertex(2, 0),
         ], closed=True)
@@ -125,18 +150,18 @@ class LWPolylineBindingsTests(unittest.TestCase):
         del segments, polyline
         gc.collect()
         self.assertEqual((midpoint.x, midpoint.y), (1, -1))
-        coincident = DXFCAD.LWPolyline([
+        coincident = DXFCAD.LWPolylineEntity([
             DXFCAD.LWPolylineVertex(0, 0, 1), DXFCAD.LWPolylineVertex(0, 0)])
         with self.assertRaises(ValueError):
             coincident.segments()
         with self.assertRaises(OverflowError):
-            DXFCAD.LWPolyline([
+            DXFCAD.LWPolylineEntity([
                 DXFCAD.LWPolylineVertex(0, 0, sys.float_info.max),
                 DXFCAD.LWPolylineVertex(2, 0),
             ]).segments()
 
     def test_world_segments_and_lifetime(self):
-        polyline = DXFCAD.LWPolyline([
+        polyline = DXFCAD.LWPolylineEntity([
             DXFCAD.LWPolylineVertex(0, 0, -1), DXFCAD.LWPolylineVertex(2, 0),
         ], elevation=5, extrusion=DXFCAD.ExtrusionDirection(0, 2, 0))
         segment = polyline.world_segments()[0]
@@ -154,18 +179,18 @@ class LWPolylineBindingsTests(unittest.TestCase):
 
     def test_world_errors(self):
         with self.assertRaises(OverflowError):
-            DXFCAD.LWPolyline([
+            DXFCAD.LWPolylineEntity([
                 DXFCAD.LWPolylineVertex(-sys.float_info.max, -sys.float_info.max),
                 DXFCAD.LWPolylineVertex(0, 0),
             ], elevation=sys.float_info.max,
                 extrusion=DXFCAD.ExtrusionDirection(1, 1, 1)).world_segments()
         with self.assertRaises(ValueError):
-            DXFCAD.LWPolyline([
+            DXFCAD.LWPolylineEntity([
                 DXFCAD.LWPolylineVertex(0, 0, 1), DXFCAD.LWPolylineVertex(0, 0),
             ]).world_segments()
 
     def test_width_regions_and_native_width_presence(self):
-        polyline = DXFCAD.LWPolyline([
+        polyline = DXFCAD.LWPolylineEntity([
             DXFCAD.LWPolylineVertex(0, 0, start_width=2, end_width=4),
             DXFCAD.LWPolylineVertex(4, 0),
         ], elevation=3)
@@ -181,10 +206,10 @@ class LWPolylineBindingsTests(unittest.TestCase):
         self.assertEqual(point.y, 1)
         for invalid in [0, -1, float("nan"), float("inf")]:
             with self.assertRaises(ValueError):
-                DXFCAD.LWPolyline().width_regions(invalid)
+                DXFCAD.LWPolylineEntity().width_regions(invalid)
         explicit = DXFCAD.LWPolylineVertex(0, 0, has_widths=True)
         self.assertTrue(explicit.has_widths)
-        self.assertEqual(DXFCAD.LWPolyline([explicit, DXFCAD.LWPolylineVertex(4, 0)],
+        self.assertEqual(DXFCAD.LWPolylineEntity([explicit, DXFCAD.LWPolylineVertex(4, 0)],
                                          constant_width=2).width_regions(), [])
 
     @unittest.skipUnless("FreeCAD" in sys.modules, "Requires FreeCAD Part runtime")
@@ -211,7 +236,7 @@ class LWPolylineBindingsTests(unittest.TestCase):
             normal = vector(*extrusion).normalize()
             for bulge in [-2.414213562373095, -0.4142135623730951, 1, 2.414213562373095]:
                 with self.subTest(extrusion=extrusion, bulge=bulge):
-                    polyline = DXFCAD.LWPolyline([
+                    polyline = DXFCAD.LWPolylineEntity([
                         DXFCAD.LWPolylineVertex(3, -2, bulge),
                         DXFCAD.LWPolylineVertex(5, 2), DXFCAD.LWPolylineVertex(8, 3),
                     ], closed=True, elevation=-7, extrusion=DXFCAD.ExtrusionDirection(*extrusion))
@@ -243,7 +268,7 @@ class LWPolylineBindingsTests(unittest.TestCase):
         for bulge in [-2.414213562373095, -1, -0.4142135623730951,
                       0.4142135623730951, 1, 2.414213562373095]:
             with self.subTest(bulge=bulge):
-                segment = DXFCAD.LWPolyline([
+                segment = DXFCAD.LWPolylineEntity([
                     DXFCAD.LWPolylineVertex(3, -2, bulge),
                     DXFCAD.LWPolylineVertex(5, 2),
                 ]).segments()[0]

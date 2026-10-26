@@ -14,7 +14,7 @@ void positiveFinite(double value, const char* message) {
 }
 namespace {
 struct Corner {
-    LWPolyline model;
+    LWPolylineEntity model;
     std::size_t previous, next;
     double ux,uy,vx,vy,la,lb,theta,turn;
 };
@@ -57,7 +57,7 @@ std::string replaceCorner(const std::string& raw,std::size_t index,const Corner&
     std::vector<int> origins;
     for (std::size_t i=0; i<c.model.vertices().size(); ++i) origins.push_back(static_cast<int>(i));
     origins.insert(origins.begin()+index+1,-1);
-    return updateLWPolyline(raw,LWPolyline(vertices,c.model.closed(),width,c.model.elevation(),c.model.extrusion()),origins);
+    return updateLWPolyline(raw,LWPolylineEntity(vertices,c.model.closed(),width,c.model.elevation(),c.model.extrusion()),origins);
 }
 }
 std::string Drafting::properties(const std::string& raw,const std::string& layer,int color,bool visible,const std::string& context) {

@@ -125,7 +125,7 @@ class PolylineCornerPlanTests(unittest.TestCase):
             self.assertEqual(DXFCAD.current_drawing_bytes(self.root), before)
 
     def test_closed_seam_and_detached_entities(self):
-        model = DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0, 0), DXFCAD.LWPolylineVertex(10, 0),
+        model = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0, 0), DXFCAD.LWPolylineVertex(10, 0),
                                   DXFCAD.LWPolylineVertex(10, 10), DXFCAD.LWPolylineVertex(0, 10)], True)
         closed = create_polyline(self.doc, model, self.root)
         for fillet in (True, False):

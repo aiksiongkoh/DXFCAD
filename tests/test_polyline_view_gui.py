@@ -21,7 +21,7 @@ def checkpoint(*args):
 FreeCADGui.activateWorkbench("DXFCADWorkbench")
 checkpoint("Viewport stage: initialized")
 doc = FreeCAD.newDocument("VertexPicking")
-base = DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,0,0.25,0.2,0.4,True),
+base = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0,0.25,0.2,0.4,True),
                          DXFCAD.LWPolylineVertex(10,0), DXFCAD.LWPolylineVertex(10,10)],
                         elevation=4, extrusion=DXFCAD.ExtrusionDirection(1,2,3))
 obj = create_polyline(doc, base)

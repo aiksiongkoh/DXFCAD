@@ -131,7 +131,7 @@ public:
         }
         std::vector<LWPolylineVertex> vertices;
         std::vector<int> origins;
-        const auto model=type=="LWPOLYLINE" ? readLWPolyline(raw) : LWPolyline();
+        const auto model=type=="LWPOLYLINE" ? readLWPolyline(raw) : LWPolylineEntity();
         const bool variable=std::any_of(model.vertices().begin(),model.vertices().end(),[](const auto& v) {
             return v.hasWidths || v.startWidth!=0 || v.endWidth!=0;
         });
@@ -167,7 +167,7 @@ public:
                 addVertex(lastVertex,endOrigin);
             }
         }
-        const LWPolyline result(vertices,false,model.constantWidth(),plane.elevation,extrusion);
+        const LWPolylineEntity result(vertices,false,model.constantWidth(),plane.elevation,extrusion);
         return type=="LWPOLYLINE" ? updateLWPolyline(raw,result,origins) : inherit(createLWPolyline(result),raw);
     }
 private:
@@ -288,7 +288,7 @@ std::string Contour::close(const std::string& raw,double endpointTolerance) {
         if (vertices.size()<2) throw std::invalid_argument("Closing would leave fewer than two vertices");
     } else vertices.back().bulge=0; // A formerly unused bulge must not bend the new closing edge.
     if (variable) for (auto& v : vertices) v.hasWidths=true;
-    return updateLWPolyline(raw,LWPolyline(vertices,true,model.constantWidth(),model.elevation(),model.extrusion()),origins);
+    return updateLWPolyline(raw,LWPolylineEntity(vertices,true,model.constantWidth(),model.elevation(),model.extrusion()),origins);
 }
 
 std::string Contour::join(const std::vector<std::string>& entities,double endpointTolerance) {
@@ -374,7 +374,7 @@ std::string Contour::join(const std::vector<std::string>& entities,double endpoi
         used[index]=true;
         const bool reverse=nodes[index*2]!=current;
         const auto& source=curves[index];
-        const auto model=paths[index].type=="LWPOLYLINE" ? readLWPolyline(paths[index].raw) : LWPolyline();
+        const auto model=paths[index].type=="LWPOLYLINE" ? readLWPolyline(paths[index].raw) : LWPolylineEntity();
         bool variable=false;
         for (const auto& v : model.vertices()) if (v.hasWidths || v.startWidth!=0 || v.endWidth!=0) variable=true;
         for (std::size_t j=0;j<source.size();++j) {
@@ -403,7 +403,7 @@ std::string Contour::join(const std::vector<std::string>& entities,double endpoi
     }
     if (closed) { vertices.pop_back(); origins.pop_back(); }
     ExtrusionDirection extrusion{plane.frame.normal().x,plane.frame.normal().y,plane.frame.normal().z};
-    const LWPolyline model(vertices,closed,0,plane.elevation,extrusion);
+    const LWPolylineEntity model(vertices,closed,0,plane.elevation,extrusion);
     if (paths[0].type=="LWPOLYLINE") return updateLWPolyline(parseEntity(entities[0])->copied({0,0,0}),model,origins);
     return inherit(createLWPolyline(model),entities[0]);
 }

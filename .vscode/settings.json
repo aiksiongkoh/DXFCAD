@@ -1,4 +1,9 @@
 {
+    "cmake.buildDirectory": "${workspaceFolder}/build/native",
+    "cmake.configureSettings": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
+    },
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/native/compile_commands.json",
     "python.defaultInterpreterPath": "${env:ProgramFiles}/FreeCAD 1.1/bin/python.exe",
     "python.analysis.extraPaths": [
         "${workspaceFolder}/build/python311"

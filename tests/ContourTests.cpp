@@ -80,17 +80,17 @@ void splitTests() {
     check(parseEntity(pieces[0])->type()=="ARC"); near(Contour::length(pieces[0]),3);
     near(Contour::length(pieces[0])+Contour::length(pieces[1]),4*std::acos(-1.0));
     rejects([&]{Contour::distanceAtPoint(circle,{0,0,0});});
-    const auto widthOverride=createLWPolyline(LWPolyline({{0,0,0,0,0,false},{5,0,0,0,0,true},{10,0}},false,4));
+    const auto widthOverride=createLWPolyline(LWPolylineEntity({{0,0,0,0,0,false},{5,0,0,0,0,true},{10,0}},false,4));
     pieces=Contour::split(widthOverride,{3});
     check(readLWPolyline(pieces[0]).widthRegions().empty());
 }
 void closeJoinTests() {
-    auto raw=createLWPolyline(LWPolyline({{0,0},{10,0},{10,10},{0,0}},false));
+    auto raw=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10},{0,0}},false));
     auto closed=Contour::close(raw);
     check(readLWPolyline(closed).closed() && readLWPolyline(closed).vertices().size()==3);
     near(Contour::length(closed),Contour::length(raw));
     check(Contour::close(closed)==closed);
-    raw=createLWPolyline(LWPolyline({{0,0},{10,0},{10,10,5}},false));
+    raw=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10,5}},false));
     closed=Contour::close(raw);
     near(readLWPolyline(closed).vertices().back().bulge,0);
     rejects([&]{Contour::close(createLine({0,0,0},{1,0,0}));});
@@ -106,7 +106,7 @@ void closeJoinTests() {
     rejects([&]{Contour::join({a,b,createLine({10,0,2},{20,0,2})});});
     rejects([&]{Contour::join({a,createLine({10,0,3},{10,10,3})});});
     rejects([&]{Contour::join({a,Drafting::properties(b,"Other",256,true)});});
-    const auto tilted= createLWPolyline(LWPolyline({{0,0,1,2,6,true},{10,0}},false,0,3,{0,1,0}));
+    const auto tilted= createLWPolyline(LWPolylineEntity({{0,0,1,2,6,true},{10,0}},false,0,3,{0,1,0}));
     const auto line=createLine({-10,3,0},{-15,3,0});
     joined=Contour::join({line,tilted});
     near(Contour::length(joined),5+5*std::acos(-1.0));
@@ -118,7 +118,7 @@ void closeJoinTests() {
     check(found);
     joined=Contour::join({createLine({0,0,0},{10,0,0}),createLine({0,0,10},{0,0,0})});
     near(Contour::length(joined),20);
-    raw=createLWPolyline(LWPolyline({{0,0},{10,0},{10,10},{0,0,0,0,0,true}},false,4));
+    raw=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10},{0,0,0,0,0,true}},false,4));
     check(readLWPolyline(Contour::close(raw)).widthRegions().empty());
 }
 void interiorTests() {
@@ -131,9 +131,9 @@ void interiorTests() {
     rejects([&]{Contour::trimInterior(line,{a,b},3);});
     rejects([&]{Contour::trimInterior(line,{createLine({2,0,2},{8,0,2})},5);});
     rejects([&]{Contour::trimInterior(line,{createCircle({5,1,2},1)},5);}); // tangent only
-    const auto touching=createLWPolyline(LWPolyline({{3,0},{4,2},{2,2}},true,0,2));
+    const auto touching=createLWPolyline(LWPolylineEntity({{3,0},{4,2},{2,2}},true,0,2));
     rejects([&]{Contour::trimInterior(line,{touching},5);}); // polygon vertex only touches
-    const auto touchingOpen=createLWPolyline(LWPolyline({{2,2},{3,0},{4,2}},false,0,2));
+    const auto touchingOpen=createLWPolyline(LWPolylineEntity({{2,2},{3,0},{4,2}},false,0,2));
     rejects([&]{Contour::trimInterior(line,{touchingOpen},5);});
     const auto circle=createCircle({0,0,2},5);
     pieces=Contour::trimInterior(circle,{createLine({0,-10,2},{0,10,2})},1);

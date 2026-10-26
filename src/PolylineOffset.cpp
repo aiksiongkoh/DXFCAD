@@ -11,7 +11,7 @@ bool contains(const Curve& c,Point2D p) {
     const double t=c.parameter(p), eps=joinTolerance/c.extent();
     return std::isfinite(t) && t>=-eps && t<=1+eps;
 }
-std::vector<Curve> curves(const LWPolyline& model) {
+std::vector<Curve> curves(const LWPolylineEntity& model) {
     std::vector<Curve> result;
     for (const auto& s : model.segments()) {
         Curve c{s.start,s.end,{0,0}};
@@ -36,7 +36,7 @@ bool circularOverlap(const Curve& a,const Curve& b) {
         if ((std::min(x.second,y.second+shift)-std::max(x.first,y.first+shift))*a.radius>joinTolerance) return true;
     return false;
 }
-void simple(const LWPolyline& model) {
+void simple(const LWPolylineEntity& model) {
     const auto edges=curves(model); const auto count=edges.size();
     for (std::size_t i=0; i<count; ++i) for (std::size_t j=i+1; j<count; ++j) {
         const auto& a=edges[i]; const auto& b=edges[j];
@@ -137,7 +137,7 @@ public:
             if (i<edges_.size()) v.bulge=edges_[i].bulge();
             vertices.push_back(v); origins.push_back(static_cast<int>(i));
         }
-        const LWPolyline output(vertices,model_.closed(),model_.constantWidth(),model_.elevation(),model_.extrusion());
+        const LWPolylineEntity output(vertices,model_.closed(),model_.constantWidth(),model_.elevation(),model_.extrusion());
         output.worldSegments();
         simple(output);
         return updateLWPolyline(raw_,output,origins);
@@ -176,7 +176,7 @@ private:
         } else throw std::invalid_argument("Offset segments do not meet; use a smaller distance");
     }
     std::string raw_;
-    LWPolyline model_;
+    LWPolylineEntity model_;
     double distance_;
     std::vector<OffsetEdge> edges_;
     std::vector<Join> joins_;

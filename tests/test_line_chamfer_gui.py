@@ -20,7 +20,7 @@ first+="1001\nChamferTest\n1000\nkeep source metadata\n"
 second=DXFCAD.create_line(V(10,0,3),V(10,10,3))
 short=DXFCAD.create_line(V(20,0,3),V(25,0,3))
 apart=DXFCAD.create_line(V(30,5,3),V(30,10,3))
-tilted=DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,20),DXFCAD.LWPolylineVertex(10,20),DXFCAD.LWPolylineVertex(10,30)],False,0,7,DXFCAD.ExtrusionDirection(1,2,3)).world_vertices()
+tilted=DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,20),DXFCAD.LWPolylineVertex(10,20),DXFCAD.LWPolylineVertex(10,30)],False,0,7,DXFCAD.ExtrusionDirection(1,2,3)).world_vertices()
 tilt_a=DXFCAD.create_line(tilted[0],tilted[1])
 tilt_b=DXFCAD.create_line(tilted[1],tilted[2])
 source=DXFCAD.DXFDocument.empty(4).serialize(added=[first,second,short,apart,tilt_a,tilt_b])

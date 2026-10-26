@@ -63,7 +63,7 @@ class EditingTests(unittest.TestCase):
         from dxfcad_edit import apply_entity_update
         doc, obj = self.imported_polyline()
         session = DXFCAD.begin_polyline_edit(obj)
-        model = session.polyline.translated(DXFCAD.Vector3D(1, 0, 0))
+        model = session.polyline.moved(DXFCAD.Vector3D(1, 0, 0))
         create_line(doc, DXFCAD.Vector3D(), DXFCAD.Vector3D(2, 0, 0), obj.DXFSourceRoot)
         with self.assertRaises(ValueError): session.prepare(model)
         self.assertEqual(obj.DXFData, NATIVE)
@@ -277,7 +277,7 @@ class EditingTests(unittest.TestCase):
             doc = import_dxf(source)
             obj = next(o for o in doc.Objects if "DXFData" in o.PropertiesList)
             model = DXFCAD.read_lwpolyline(obj.DXFData)
-            edited = model.translated(DXFCAD.Vector3D(2, 3, 4)).scaled(2).mirrored(DXFCAD.Point2D(), DXFCAD.Point2D(0,1))
+            edited = model.moved(DXFCAD.Vector3D(2, 3, 4)).scaled_in_plane(2).mirrored_in_plane(DXFCAD.Point2D(), DXFCAD.Point2D(0,1))
             apply_polyline(obj, edited)
             native = obj.DXFData
             self.assertTrue(obj.Shape.isValid())
@@ -289,7 +289,7 @@ class EditingTests(unittest.TestCase):
             doc.redo()
             doc.recompute()
             self.assertEqual(obj.DXFData, native)
-            new = create_polyline(doc, DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(5,0)]))
+            new = create_polyline(doc, DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(5,0)]))
             self.assertEqual(new.DXFSourceIndex, -1)
             saved = Path(temp) / "saved.FCStd"
             doc.saveAs(str(saved))
@@ -314,7 +314,7 @@ class EditingTests(unittest.TestCase):
 
     def test_create_undo_and_joined_widths(self):
         doc = FreeCAD.newDocument("Created")
-        model = DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,0), DXFCAD.LWPolylineVertex(10,0),
+        model = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0), DXFCAD.LWPolylineVertex(10,0),
                                   DXFCAD.LWPolylineVertex(10,10)], constant_width=2)
         obj = create_polyline(doc, model)
         self.assertTrue(obj.Shape.isValid())
@@ -346,7 +346,7 @@ class EditingTests(unittest.TestCase):
 
     def test_failed_edits_and_export_leave_data_untouched(self):
         doc = FreeCAD.newDocument("Invalid")
-        p = DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,0,1),DXFCAD.LWPolylineVertex(2,0)])
+        p = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0,1),DXFCAD.LWPolylineVertex(2,0)])
         obj = create_polyline(doc, p)
         original = obj.DXFData
         with self.assertRaises(ValueError):
@@ -377,7 +377,7 @@ class EditingTests(unittest.TestCase):
         for bulge in (-0.414213562373095, 0.414213562373095):
             for closed in (False, True):
                 with self.subTest(bulge=bulge, closed=closed):
-                    model = DXFCAD.LWPolyline([
+                    model = DXFCAD.LWPolylineEntity([
                         DXFCAD.LWPolylineVertex(0,0,bulge,0.4,0.6),
                         DXFCAD.LWPolylineVertex(2,0,-bulge,0.6,0.4),
                         DXFCAD.LWPolylineVertex(2,2,0,0.4,0.4),
@@ -388,7 +388,7 @@ class EditingTests(unittest.TestCase):
                     self.assertTrue(obj.Shape.isValid())
                     self.assertGreater(obj.Shape.Area, 0)
                     area = obj.Shape.Area
-                    apply_polyline(obj, model.mirrored(DXFCAD.Point2D(), DXFCAD.Point2D(1,0)))
+                    apply_polyline(obj, model.mirrored_in_plane(DXFCAD.Point2D(), DXFCAD.Point2D(1,0)))
                     self.assertTrue(obj.Shape.isValid())
                     self.assertAlmostEqual(obj.Shape.Area, area, places=7)
 

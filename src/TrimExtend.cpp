@@ -110,7 +110,7 @@ std::string Drafting::trim(const std::string& raw,const std::string& boundary,bo
             vertices.push_back(j==index ? first : j==index+1 ? last : original[j]);
             origins.push_back(static_cast<int>(j));
         }
-        result=updateLWPolyline(raw,LWPolyline(vertices,false,model.constantWidth(),model.elevation(),model.extrusion()),origins);
+        result=updateLWPolyline(raw,LWPolylineEntity(vertices,false,model.constantWidth(),model.elevation(),model.extrusion()),origins);
     }
     parseEntity(result)->geometry();
     return result;

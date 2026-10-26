@@ -4,10 +4,11 @@ project(DXFCAD VERSION 0.1.0 LANGUAGES CXX)
 
 # The domain layer deliberately has no GUI or downstream workbench dependency.
 add_library(DXFCADDomain STATIC
-    src/LWPolyline.cpp
-    src/LWPolylineEditing.cpp
-    src/LWPolylineWorldGeometry.cpp
-    src/LWPolylineWidths.cpp
+    src/LWPolylineEntity.cpp
+    src/LWPolylineEntityGeometry.cpp
+    src/LWPolylineEntityEditing.cpp
+    src/LWPolylineEntityWorldGeometry.cpp
+    src/LWPolylineEntityWidths.cpp
     src/OCSFrame.cpp
     src/DXFDocument.cpp
     src/Insert.cpp
@@ -21,6 +22,9 @@ add_library(DXFCADDomain STATIC
     src/LineFillet.cpp
     src/LineChamfer.cpp
     src/ArcCreation.cpp
+    src/EntityConversion.cpp
+    src/ParametricCurves.cpp
+    src/LegacyPolyline.cpp
 )
 add_library(DXFCAD::Domain ALIAS DXFCADDomain)
 target_include_directories(DXFCADDomain PUBLIC
@@ -72,6 +76,12 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(DXFCADLWPolylineEntityTests tests/LWPolylineEntityTests.cpp)
+    target_link_libraries(DXFCADLWPolylineEntityTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.LWPolylineEntity COMMAND DXFCADLWPolylineEntityTests)
+    add_executable(DXFCADConversionTests tests/EntityConversionTests.cpp)
+    target_link_libraries(DXFCADConversionTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.EntityConversion COMMAND DXFCADConversionTests)
     add_executable(DXFCADLWPolylineTests tests/LWPolylineTests.cpp)
     target_link_libraries(DXFCADLWPolylineTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.LWPolyline COMMAND DXFCADLWPolylineTests)

@@ -1,4 +1,4 @@
-#include <DXFCAD/LWPolyline.h>
+#include <DXFCAD/LWPolylineEntity.h>
 
 #include <cmath>
 #include <stdexcept>
@@ -17,48 +17,57 @@ void requireFinite(double value, const char* message)
 void requireWidth(double value)
 {
     if (!std::isfinite(value) || value < 0.0) {
-        throw std::invalid_argument("LWPolyline widths must be finite and nonnegative");
+        throw std::invalid_argument("LWPolylineEntity widths must be finite and nonnegative");
     }
 }
 
 } // namespace
 
-LWPolyline::LWPolyline(std::vector<LWPolylineVertex> vertices,
-                       bool closed,
-                       double constantWidth,
-                       double elevation,
-                       ExtrusionDirection extrusion)
-    : vertices_(std::move(vertices)), closed_(closed),
+LWPolylineEntity::LWPolylineEntity(std::vector<LWPolylineVertex> vertices,
+                                   bool closed,
+                                   double constantWidth,
+                                   double elevation,
+                                   ExtrusionDirection extrusion)
+    : DXFEntity({}), vertices_(std::move(vertices)), closed_(closed),
       constantWidth_(constantWidth), elevation_(elevation), extrusion_(extrusion)
 {
+    validate();
+    record_ = geometryRecord(*this, std::vector<int>(vertices_.size(), -1));
+    // Nonzero widths were emitted as explicit native fields in the new record.
+    for (auto& vertex : vertices_)
+        if (vertex.startWidth != 0 || vertex.endWidth != 0) vertex.hasWidths = true;
+}
+
+void LWPolylineEntity::validate() const
+{
     requireWidth(constantWidth_);
-    requireFinite(elevation_, "LWPolyline elevation must be finite");
-    requireFinite(extrusion_.x, "LWPolyline extrusion must be finite");
-    requireFinite(extrusion_.y, "LWPolyline extrusion must be finite");
-    requireFinite(extrusion_.z, "LWPolyline extrusion must be finite");
+    requireFinite(elevation_, "LWPolylineEntity elevation must be finite");
+    requireFinite(extrusion_.x, "LWPolylineEntity extrusion must be finite");
+    requireFinite(extrusion_.y, "LWPolylineEntity extrusion must be finite");
+    requireFinite(extrusion_.z, "LWPolylineEntity extrusion must be finite");
     if (extrusion_.x == 0.0 && extrusion_.y == 0.0 && extrusion_.z == 0.0) {
-        throw std::invalid_argument("LWPolyline extrusion must be nonzero");
+        throw std::invalid_argument("LWPolylineEntity extrusion must be nonzero");
     }
     for (const auto& vertex : vertices_) {
-        requireFinite(vertex.x, "LWPolyline vertex coordinates must be finite");
-        requireFinite(vertex.y, "LWPolyline vertex coordinates must be finite");
-        requireFinite(vertex.bulge, "LWPolyline bulge must be finite");
+        requireFinite(vertex.x, "LWPolylineEntity vertex coordinates must be finite");
+        requireFinite(vertex.y, "LWPolylineEntity vertex coordinates must be finite");
+        requireFinite(vertex.bulge, "LWPolylineEntity bulge must be finite");
         requireWidth(vertex.startWidth);
         requireWidth(vertex.endWidth);
     }
 }
 
-const std::vector<LWPolylineVertex>& LWPolyline::vertices() const noexcept
+const std::vector<LWPolylineVertex>& LWPolylineEntity::vertices() const noexcept
 {
     return vertices_;
 }
 
-bool LWPolyline::closed() const noexcept { return closed_; }
-double LWPolyline::constantWidth() const noexcept { return constantWidth_; }
-double LWPolyline::elevation() const noexcept { return elevation_; }
-const ExtrusionDirection& LWPolyline::extrusion() const noexcept { return extrusion_; }
+bool LWPolylineEntity::closed() const noexcept { return closed_; }
+double LWPolylineEntity::constantWidth() const noexcept { return constantWidth_; }
+double LWPolylineEntity::elevation() const noexcept { return elevation_; }
+const ExtrusionDirection& LWPolylineEntity::extrusion() const noexcept { return extrusion_; }
 
-std::vector<LWPolylineSegment> LWPolyline::segments() const
+std::vector<LWPolylineSegment> LWPolylineEntity::segments() const
 {
     std::vector<LWPolylineSegment> result;
     if (vertices_.size() < 2) {
@@ -75,10 +84,10 @@ std::vector<LWPolylineSegment> LWPolyline::segments() const
             const double dy = end.y - start.y;
             const double chord = std::hypot(dx, dy);
             if (chord == 0.0) {
-                throw std::domain_error("Cannot derive an arc from coincident LWPolyline vertices");
+                throw std::domain_error("Cannot derive an arc from coincident LWPolylineEntity vertices");
             }
             if (!std::isfinite(chord)) {
-                throw std::overflow_error("LWPolyline arc chord is not representable");
+                throw std::overflow_error("LWPolylineEntity arc chord is not representable");
             }
             const double nx = -dy / chord;
             const double ny = dx / chord;
@@ -100,7 +109,7 @@ std::vector<LWPolylineSegment> LWPolyline::segments() const
                 || !std::isfinite(arc.midpoint.x) || !std::isfinite(arc.midpoint.y)
                 || !std::isfinite(radius) || radius <= 0.0 || sweep == 0.0
                 || std::abs(sweep) >= fullCircle) {
-                throw std::overflow_error("LWPolyline arc geometry is not representable");
+                throw std::overflow_error("LWPolylineEntity arc geometry is not representable");
             }
             segment.arc = arc;
         }

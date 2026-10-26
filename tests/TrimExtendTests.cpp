@@ -47,10 +47,10 @@ int main() {
         near(parseEntity(Drafting::trim(broad,shifted,true))->record().number(50),60);
         near(parseEntity(Drafting::trim(arc(300,120),shifted,false))->record().number(51),60);
         rejects([&] { Drafting::trim(broad,circle,false); });
-        const auto boundary=createLWPolyline(LWPolyline({{-3,-2},{-3,2},{4,2},{4,-2}}));
+        const auto boundary=createLWPolyline(LWPolylineEntity({{-3,-2},{-3,2},{4,2},{4,-2}}));
         near(parseEntity(Drafting::trim(line,boundary,true))->geometry().segments[0].start.x,-3);
         near(parseEntity(Drafting::trim(line,boundary,false))->geometry().segments[0].end.x,4);
-        const auto poly=createLWPolyline(LWPolyline({{0,0},{10,0},{10,10},{20,10}}));
+        const auto poly=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10},{20,10}}));
         const auto cutter=createLine({-1,5,0},{21,5,0});
         const auto ps=readLWPolyline(Drafting::trim(poly,cutter,true));
         const auto pe=readLWPolyline(Drafting::trim(poly,cutter,false));
@@ -73,9 +73,9 @@ int main() {
         near(curved.vertices()[0].bulge,std::tan(std::acos(-1.0)/8));
         near(curved.vertices()[0].startWidth,4); near(curved.vertices()[0].endWidth,6);
         check(trimmed.find("91\n101\n")!=std::string::npos && trimmed.find("91\n102\n")!=std::string::npos && trimmed.find("1000\nkeep\n")!=std::string::npos,"Polyline native fields lost");
-        const auto cw=createLWPolyline(LWPolyline({{-5,0,-1},{5,0}}));
+        const auto cw=createLWPolyline(LWPolylineEntity({{-5,0,-1},{5,0}}));
         near(readLWPolyline(Drafting::trim(cw,vertical,false)).vertices()[0].bulge,-std::tan(std::acos(-1.0)/8));
-        const auto bulgeCut=createLWPolyline(LWPolyline({{-5,0,1},{5,0}}));
+        const auto bulgeCut=createLWPolyline(LWPolylineEntity({{-5,0,1},{5,0}}));
         near(parseEntity(Drafting::trim(createLine({-10,-3,0},{10,-3,0}),bulgeCut,false))->geometry().segments[0].end.x,4);
         // Major arcs remain major when appropriate; extensions retain their center.
         const auto extendedCurve=readLWPolyline(Drafting::trim(wide,createLine({-10,3,0},{10,3,0}),false,true));
@@ -83,7 +83,7 @@ int main() {
         near(extendedCurve.segments()[0].arc->center.x,0); near(extendedCurve.segments()[0].arc->radius,5);
         // Native OCS, including opposite normals and arbitrary tilted planes.
         const OCSFrame frame({1,2,3});
-        const auto tilted=createLWPolyline(LWPolyline({{0,0},{10,0},{10,10}},false,2,7,{1,2,3}));
+        const auto tilted=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10}},false,2,7,{1,2,3}));
         const auto tiltCut=createLine(frame.toWorld({5,-5},7),frame.toWorld({5,5},7));
         const auto tp=readLWPolyline(Drafting::trim(tilted,tiltCut,true));
         near(tp.vertices()[0].x,5); near(tp.elevation(),7); near(tp.extrusion().x,1);

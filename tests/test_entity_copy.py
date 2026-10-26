@@ -132,7 +132,7 @@ class EntityCopyTests(unittest.TestCase):
         self.assertEqual(DXFCAD.current_drawing_bytes(self.root), before)
 
     def test_polyline_display_preferences_and_native_provenance(self):
-        poly = create_polyline(self.doc, DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(4, 0)]), self.root)
+        poly = create_polyline(self.doc, DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(4, 0)]), self.root)
         poly.ShowWidths = True
         raw = DXFCAD.offset_entity(poly.DXFData, 1)
         clone = create_related([(poly, raw)], "Offset polyline")[0]

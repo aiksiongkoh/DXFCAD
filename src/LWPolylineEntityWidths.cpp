@@ -1,3 +1,4 @@
+#include <DXFCAD/LWPolylineEntity.h>
 #include <DXFCAD/OCSFrame.h>
 
 #include <algorithm>
@@ -9,7 +10,7 @@ namespace {
 bool equal(const Point2D& a, const Point2D& b) { return a.x == b.x && a.y == b.y; }
 }
 
-std::vector<LWPolylineWidthRegion> LWPolyline::widthRegions(double tolerance) const
+std::vector<LWPolylineWidthRegion> LWPolylineEntity::widthRegions(double tolerance) const
 {
     if (!std::isfinite(tolerance) || tolerance <= 0) {
         throw std::invalid_argument("Width outline tolerance must be finite and positive");

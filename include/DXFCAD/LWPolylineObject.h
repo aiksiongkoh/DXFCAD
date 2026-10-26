@@ -4,8 +4,8 @@
 
 namespace DXFCAD {
 
-// FreeCAD persistence and recomputation live here. LWPolyline remains the
-// independent C++ geometry model, reconstructed from authoritative DXFData.
+// FreeCAD persistence and recomputation live here. LWPolylineEntity provides
+// the independent C++ domain behavior, reconstructed from authoritative DXFData.
 class LWPolylineObject final : public DXFEntityObject {
     PROPERTY_HEADER_WITH_OVERRIDE(DXFCAD::LWPolylineObject);
 

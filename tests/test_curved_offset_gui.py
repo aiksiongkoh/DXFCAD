@@ -14,9 +14,9 @@ rich=("0\nLWPOLYLINE\n100\nAcDbEntity\n8\n0\n100\nAcDbPolyline\n90\n3\n70\n128\n
       "210\n1\n220\n2\n230\n3\n10\n-5\n20\n0\n42\n1\n40\n0.2\n41\n0.4\n91\n101\n"
       "10\n5\n20\n0\n40\n0.6\n41\n0.8\n91\n102\n10\n10\n20\n0\n91\n103\n1001\nTest\n1000\nkeep curved data\n")
 curve=_create_entity(doc,rich,None,"LWPolyline")
-ring_raw=DXFCAD.create_lwpolyline(DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(15,0,1),DXFCAD.LWPolylineVertex(25,0,1)],True,0.3,3))
+ring_raw=DXFCAD.create_lwpolyline(DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(15,0,1),DXFCAD.LWPolylineVertex(25,0,1)],True,0.3,3))
 ring=_create_entity(doc,ring_raw,None,"LWPolyline")
-elbow=DXFCAD.create_lwpolyline(DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(30,0),DXFCAD.LWPolylineVertex(40,0),DXFCAD.LWPolylineVertex(40,10)]))
+elbow=DXFCAD.create_lwpolyline(DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(30,0),DXFCAD.LWPolylineVertex(40,0),DXFCAD.LWPolylineVertex(40,10)]))
 fillet=_create_entity(doc,DXFCAD.fillet_corner(elbow,1,4),None,"LWPolyline")
 objects=[curve,ring,fillet]
 doc.recompute()

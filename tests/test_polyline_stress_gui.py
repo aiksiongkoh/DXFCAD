@@ -38,14 +38,14 @@ def synthetic():
     # Drawing construction here is a test fixture, not production DXF logic.
     vertices = [DXFCAD.LWPolylineVertex(i, 2*math.sin(i/10), 0.05 if i%3 == 0 else 0)
                 for i in range(120)]
-    records = [DXFCAD.create_lwpolyline(DXFCAD.LWPolyline(vertices))]
+    records = [DXFCAD.create_lwpolyline(DXFCAD.LWPolylineEntity(vertices))]
     for i in range(1000):
         x,y = (i%50)*3, (i//50)*3+20
         records.append(f"0\nLINE\n5\n{i+256:X}\n8\n0\n10\n{x}\n20\n{y}\n11\n{x+1}\n21\n{y+1}\n")
     for i in range(100):
         records.append(f"0\nCIRCLE\n5\n{i+4096:X}\n10\n{i%25*5}\n20\n{i//25*5+85}\n40\n0.5\n")
     for extrusion in [DXFCAD.ExtrusionDirection(), DXFCAD.ExtrusionDirection(1,2,3), DXFCAD.ExtrusionDirection(0,0,-2)]:
-        wide = DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,-10,0.4,0.4,0.8,True),
+        wide = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,-10,0.4,0.4,0.8,True),
                                   DXFCAD.LWPolylineVertex(10,-10,-0.2,0.8,0.4,True),
                                   DXFCAD.LWPolylineVertex(10,-5,0,0.4,0.4,True),
                                   DXFCAD.LWPolylineVertex(0,-5,0,0.4,0.4,True)],

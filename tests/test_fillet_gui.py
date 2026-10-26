@@ -12,7 +12,7 @@ FreeCADGui.activateWorkbench("DXFCADWorkbench")
 assert "DXFCAD_Fillet" in FreeCADGui.listCommands()
 profile=Path(FreeCAD.getUserAppDataDir())
 doc=FreeCAD.newDocument("Fillets")
-obj=create_polyline(doc,DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)],False,0,2))
+obj=create_polyline(doc,DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)],False,0,2))
 original=obj.DXFData
 panel=show_drafting_tool(FilletTaskPanel,[obj])
 panel.amount.setText("2")
@@ -58,7 +58,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
 print("Polyline fillet: preview, radius validation, native arc, undo/redo, persistence and export passed.")
 
 doc=FreeCAD.newDocument("StaleFilletPreview")
-obj=create_polyline(doc,DXFCAD.LWPolyline([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)]))
+obj=create_polyline(doc,DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0),DXFCAD.LWPolylineVertex(10,0),DXFCAD.LWPolylineVertex(10,10)]))
 panel=show_drafting_tool(FilletTaskPanel,[obj])
 panel.preview()
 assert not panel.error.text(),panel.error.text()
