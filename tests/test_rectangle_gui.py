@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert before == {n:doc.getObject(n).DXFData for n in before}
     out = folder/"rectangles.dxf"
     export_dxf(out,doc)
-    assert len(DXFCAD.DXFDocument.read(str(out)).entities) == 5
+    assert len(DXFCAD.Drawing.read(str(out)).entities) == 5
     assert "Retain opaque data" in out.read_text()
     saved = folder/"rectangles.FCStd"
     doc.saveAs(str(saved))

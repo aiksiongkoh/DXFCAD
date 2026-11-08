@@ -1,4 +1,4 @@
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <DXFCAD/Drafting.h>
 #include <DXFCAD/SnapGeometry.h>
 #include <cmath>
@@ -28,7 +28,7 @@ int main() {
     try {
         const auto blocks=block("B",line,"10\n1\n20\n2\n");
         const auto source=drawing(blocks,insert);
-        const auto doc=DXFDocument::parse(source);
+        const auto doc=Drawing::parse(source);
         check(doc.entities.size()==1 && doc.warnings.empty());
         const auto e=doc.entities.at(0);
         const auto parts=e->blockParts(); check(parts.size()==1);
@@ -47,16 +47,16 @@ int main() {
         auto mirrored=doc.resolveEntity(e->mirrored(0,{0,0,0}));
         near(mirrored->blockParts()[0].transformPoint({3,2,1}),{10,-24,4});
         const auto replacement=e->translated({1,0,0});
-        auto exported=DXFDocument::parse(doc.serialize({{0,replacement}}));
+        auto exported=Drawing::parse(doc.serialize({{0,replacement}}));
         check(exported.entities.size()==1 && exported.entities[0]->context()==blocks);
         check(exported.entities[0]->record().value(1000)=="keep");
         const auto copied=e->copied({5,0,0});
         check(parseEntity(copied)->handle().empty());
-        exported=DXFDocument::parse(doc.serialize({}, {}, {copied}));
+        exported=Drawing::parse(doc.serialize({}, {}, {copied}));
         check(exported.entities.size()==2 && exported.entities[1]->handle()!="AB");
-        check(DXFDocument::parse(doc.serialize({}, {0})).entities.empty());
+        check(Drawing::parse(doc.serialize({}, {0})).entities.empty());
         const auto nested=block("Outer","0\nINSERT\n2\nb\n10\n5\n20\n0\n41\n-1\n");
-        auto nestedDoc=DXFDocument::parse(drawing(blocks+nested,"0\nINSERT\n2\nouter\n10\n0\n20\n7\n"));
+        auto nestedDoc=Drawing::parse(drawing(blocks+nested,"0\nINSERT\n2\nouter\n10\n0\n20\n7\n"));
         check(nestedDoc.entities.size()==1 && nestedDoc.warnings.empty());
         near(nestedDoc.entities[0]->blockParts()[0].transformPoint({3,2,0}),{3,7,0});
         auto array=patchEntityFields(parseEntity(insert)->record(),{{70,2},{71,2},{44,5},{45,7}});
@@ -68,13 +68,44 @@ int main() {
         for (const auto& raw : {patchEntityFields(e->record(),{{41,0}}),
                 patchEntityFields(e->record(),{{66,1}}),patchEntityFields(e->record(),{{70,0}}),
                 patchEntityFields(e->record(),{{70,10001}})}) rejects([&]{doc.resolveEntity(raw);});
-        rejects([&]{DXFDocument::empty().resolveEntity(insert);});
-        auto cyclic=DXFDocument::parse(drawing(block("B","0\nINSERT\n2\nB\n10\n0\n20\n0\n"),insert));
+        rejects([&]{Drawing::empty().resolveEntity(insert);});
+        auto cyclic=Drawing::parse(drawing(block("B","0\nINSERT\n2\nB\n10\n0\n20\n0\n"),insert));
         check(cyclic.entities.empty() && cyclic.warnings.size()==1 && cyclic.serialize().find("INSERT")!=std::string::npos);
-        auto unsupported=DXFDocument::parse(drawing(block("B","0\nHATCH\n"),insert));
+        auto unsupported=Drawing::parse(drawing(block("B","0\nHATCH\n"),insert));
         check(unsupported.entities.empty() && unsupported.warnings.size()==1);
-        auto styled=DXFDocument::parse(drawing(block("B","0\nLINE\n62\n1\n10\n0\n20\n0\n11\n1\n21\n0\n"),insert));
-        check(styled.entities.empty() && styled.warnings.size()==1);
+        auto styled=Drawing::parse(drawing(block("B","0\nLINE\n62\n1\n10\n0\n20\n0\n11\n1\n21\n0\n"),insert));
+        check(styled.entities.size()==1 && styled.warnings.empty());
+        check(styled.entities[0]->blockParts()[0].color==std::vector<double>({1,0,0}));
+        const std::string layers="0\nLAYER\n2\nHost\n62\n2\n0\nLAYER\n2\nChild\n62\n3\n0\nLAYER\n2\nHidden\n62\n-5\n";
+        const auto byLayer=line;
+        const auto byBlock=patchEntityFields(readDXFGroups(line),{{62,0}});
+        const auto named=patchEntityStringFields(readDXFGroups(line),{{8,"child"}});
+        const auto hidden=patchEntityStringFields(readDXFGroups(line),{{8,"Hidden"}});
+        const auto rgb=patchEntityFields(readDXFGroups(line),{{420,0x123456}});
+        const auto outer=block("B",byLayer+byBlock+named+hidden+rgb+
+            "0\nINSERT\n2\nNested\n8\nChild\n62\n6\n10\n0\n20\n0\n");
+        const auto styledSource="0\nSECTION\n2\nTABLES\n"+layers+"0\nENDSEC\n"+
+            drawing(outer+block("Nested",byBlock+byLayer),"0\nINSERT\n2\nB\n8\nHost\n62\n4\n10\n0\n20\n0\n");
+        const auto styledDoc=Drawing::parse(styledSource);
+        check(styledDoc.warnings.empty() && styledDoc.entities.size()==1);
+        const auto resolved=styledDoc.entities[0]->blockParts();
+        check(resolved.size()==7);
+        check(resolved[0].layer=="Host" && resolved[0].color==std::vector<double>({1,1,0}));
+        check(resolved[1].color==std::vector<double>({0,1,1}));
+        check(resolved[2].color==std::vector<double>({0,1,0}));
+        check(!resolved[3].visible);
+        check(std::abs(resolved[4].color[0]-18.0/255)<1e-12);
+        check(resolved[5].layer=="Child" && resolved[5].color==std::vector<double>({1,0,1}));
+        check(resolved[6].color==std::vector<double>({0,1,0}));
+        check(styledDoc.serialize()==styledSource);
+        check(styledDoc.resolveEntity(styledDoc.entities[0]->raw())->blockParts()[2].color==resolved[2].color);
+        const std::string legacyLabel="0\nTEXT\n10\n0\n20\n0\n40\n1\n1\n90\xb0 \x80\n";
+        const std::string encodedSource="0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$DWGCODEPAGE\n3\nANSI_1252\n0\nENDSEC\n"+
+            drawing(block("B",legacyLabel),"0\nINSERT\n2\nB\n10\n0\n20\n0\n");
+        const auto legacy=Drawing::parse(encodedSource);
+        check(legacy.warnings.empty() && legacy.entities.size()==1 && legacy.serialize()==encodedSource);
+        check(legacy.entities[0]->blockParts()[0].entity->geometry().text->text=="90\xc2\xb0 \xe2\x82\xac");
+        check(legacy.resolveEntity(legacy.entities[0]->raw())->context()==legacy.entities[0]->context());
         std::cout<<"BLOCK resolution, affine instances, nesting, arrays, snaps, transforms and round-trip passed.\n";
     } catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }
 }

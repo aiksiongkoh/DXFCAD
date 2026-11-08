@@ -12,7 +12,7 @@ sys.path.insert(0, str(module_directory))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import DXFCAD
 from dxfcad_import import import_dxf, default_text_font
-from dxfcad_objects import DXFObjectProxy
+from dxfcad_objects import EntityProxy
 from dxfcad_export import export_dxf
 
 assert Path(DXFCAD.__file__).parent == module_directory
@@ -32,7 +32,7 @@ class MTextTests(unittest.TestCase):
     def feature(self, record):
         obj = DXFCAD.create_feature(self.doc, DXFCAD.parse_entity(record), self.font)
         if not DXFCAD.NATIVE_DOCUMENT_OBJECTS:
-            DXFObjectProxy(obj)
+            EntityProxy(obj)
         self.doc.recompute()
         self.assertEqual(obj.DXFData, record)
         self.assertFalse(obj.DisplayStatus.startswith("Error:"), obj.DisplayStatus)
@@ -72,7 +72,7 @@ class MTextTests(unittest.TestCase):
         obj.TextFont = self.font
         self.doc.recompute()
         self.assertFalse(obj.Shape.isNull())
-        obj.DXFData = BASE+"1\n\\H2;Unsupported\n"
+        obj.DXFData = BASE+"1\n\\W2;Unsupported\n"
         if DXFCAD.NATIVE_DOCUMENT_OBJECTS:
             self.doc.recompute()
         else:
@@ -84,8 +84,26 @@ class MTextTests(unittest.TestCase):
         self.assertTrue(obj.Shape.isValid())
         self.assertGreater(obj.Shape.Length, 0)
 
+    def test_grouped_font_and_uniform_height(self):
+        plain = self.feature(BASE+"1\nSynthetic text\n").Shape.copy()
+        grouped = self.feature(BASE+"1\n{\\fArial|b0|i0|c0|p34;Synthetic text}\n").Shape
+        self.assertEqual(len(plain.Vertexes), len(grouped.Vertexes))
+        for original, rendered in zip(plain.Vertexes, grouped.Vertexes):
+            self.assertLess((rendered.Point-original.Point).Length, 2e-6)
+        scaled = self.feature(BASE+"1\n{\\H0.75x;Synthetic text}\n").Shape
+        self.assertEqual(len(plain.Vertexes), len(scaled.Vertexes))
+        for original, rendered in zip(plain.Vertexes, scaled.Vertexes):
+            self.assertLess((rendered.Point-original.Point*0.75).Length, 2e-6)
+
+    def test_unicode_escape_outlines(self):
+        literal=self.feature(BASE+"1\n60\u00b0\n").Shape.copy()
+        escaped=self.feature(BASE+"1\n60\\U+00B0\n").Shape
+        self.assertEqual(len(literal.Vertexes),len(escaped.Vertexes))
+        for expected,actual in zip(literal.Vertexes,escaped.Vertexes):
+            self.assertLess((actual.Point-expected.Point).Length,2e-6)
+
     def test_native_records_undo_export_and_cold_restore(self):
-        raw = BASE+"3\nFirst\\P\n1\nSecond\n71\n5\n41\n8\n1001\nSynthetic\n1000\nPreserve chunks\n"
+        raw = BASE+"3\n{\\fArial|b0|i0|c0|p34;\\H0.75x;First\\P\n1\nSecond\\U+00B0}\n71\n5\n41\n8\n1001\nSynthetic\n1000\nPreserve chunks\n"
         drawing = "0\nSECTION\n2\nENTITIES\n"+raw+"0\nENDSEC\n0\nEOF\n"
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp)/"mtext.dxf"
@@ -137,7 +155,7 @@ FreeCAD.closeDocument(doc.Name)
                                      str(Path(__file__).resolve().parents[1]), str(saved), str(output)],
                                     capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
-            self.assertEqual(output.read_bytes(), DXFCAD.DXFDocument.parse(drawing).serialize_bytes())
+            self.assertEqual(output.read_bytes(), DXFCAD.Drawing.parse(drawing).serialize_bytes())
 
 
 if __name__ == "__main__":

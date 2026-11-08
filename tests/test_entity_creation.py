@@ -14,14 +14,14 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import DXFCAD
 assert Path(DXFCAD.__file__).parent==module_directory
 from dxfcad_edit import transaction,_create_entity
-from dxfcad_objects import DXFObjectProxy
+from dxfcad_objects import EntityProxy
 from dxfcad_import import default_text_font
 
 LINE="0\nLINE\n10\n0\n20\n0\n11\n10\n21\n0\n1001\nTEST\n1000\nretain new entity\n"
 
 
 def finish(obj):
-    if obj.TypeId=="Part::FeaturePython": DXFObjectProxy(obj)
+    if obj.TypeId=="Part::FeaturePython": EntityProxy(obj)
     obj.Document.recompute()
 
 
@@ -54,7 +54,7 @@ class EntityCreationTests(unittest.TestCase):
         self.assertEqual(len(DXFCAD.current_drawing(root).entities),5)
 
     def test_add_new_layer_preserves_source_and_provenance_and_undo_redo(self):
-        source=DXFCAD.DXFDocument.parse("0\nSECTION\n2\nENTITIES\n0\nSPLINE\n999\nopaque\n0\nENDSEC\n0\nEOF\n")
+        source=DXFCAD.Drawing.parse("0\nSECTION\n2\nENTITIES\n0\nSPLINE\n999\nopaque\n0\nENDSEC\n0\nEOF\n")
         root=DXFCAD.create_drawing(self.doc,source,source_file="original.dxf")
         snapshot=root.DXFSourceData
         raw=DXFCAD.entity_properties(LINE,"Cutting",-1,True)
@@ -84,10 +84,10 @@ class EntityCreationTests(unittest.TestCase):
             self.assertEqual(self.doc.Objects,[])
 
     def test_ambiguous_foreign_and_legacy_roots(self):
-        left=DXFCAD.create_drawing(self.doc,DXFCAD.DXFDocument.empty(4))
+        left=DXFCAD.create_drawing(self.doc,DXFCAD.Drawing.empty(4))
         legacy=self.doc.addObject("App::DocumentObjectGroup","Legacy")
         legacy.addProperty("App::PropertyString","DXFSourceData","DXF")
-        legacy.DXFSourceData=base64.b64encode(DXFCAD.DXFDocument.empty(4).serialize_bytes()).decode("ascii")
+        legacy.DXFSourceData=base64.b64encode(DXFCAD.Drawing.empty(4).serialize_bytes()).decode("ascii")
         before={o.Name for o in self.doc.Objects}
         with self.assertRaisesRegex(ValueError,"multiple drawings"): DXFCAD.create_entity(self.doc,LINE)
         foreign=FreeCAD.newDocument("ForeignCreation")
@@ -102,12 +102,12 @@ class EntityCreationTests(unittest.TestCase):
         self.assertEqual(len(DXFCAD.current_drawing(legacy).entities),1)
 
     def test_version_placement_and_layer_ambiguity_are_validated_before_mutation(self):
-        old=DXFCAD.DXFDocument.parse("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n")
+        old=DXFCAD.Drawing.parse("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n")
         root=DXFCAD.create_drawing(self.doc,old)
         before={o.Name for o in self.doc.Objects}
         with self.assertRaisesRegex(ValueError,"R2000"): DXFCAD.add_entity(root,LINE)
         self.assertEqual({o.Name for o in self.doc.Objects},before)
-        modern=DXFCAD.create_drawing(self.doc,DXFCAD.DXFDocument.empty(4))
+        modern=DXFCAD.create_drawing(self.doc,DXFCAD.Drawing.empty(4))
         obj=DXFCAD.add_entity(modern,LINE); finish(obj)
         obj.Placement=FreeCAD.Placement(FreeCAD.Vector(1,0,0),FreeCAD.Rotation())
         with self.assertRaisesRegex(ValueError,"Placement"): DXFCAD.add_entity(modern,LINE)
@@ -121,7 +121,7 @@ class EntityCreationTests(unittest.TestCase):
 
     def test_insert_resolves_context_from_target_drawing(self):
         block="0\nBLOCK\n2\nSymbol\n10\n0\n20\n0\n0\nLINE\n10\n0\n20\n0\n11\n2\n21\n0\n0\nENDBLK\n"
-        source=DXFCAD.DXFDocument.parse("0\nSECTION\n2\nBLOCKS\n"+block+"0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n")
+        source=DXFCAD.Drawing.parse("0\nSECTION\n2\nBLOCKS\n"+block+"0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n")
         root=DXFCAD.create_drawing(self.doc,source)
         with transaction(self.doc,"Add block instance"):
             obj=DXFCAD.add_entity(root,"0\nINSERT\n2\nSymbol\n10\n10\n20\n20\n")

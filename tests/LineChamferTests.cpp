@@ -1,5 +1,5 @@
 #include <DXFCAD/Drafting.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -48,7 +48,7 @@ int main() {
             const auto c=parseEntity(r.connector)->geometry().segments[0];
             same(c.start,{2,0,0}); same(c.end,{3*std::cos(angle),3*std::sin(angle),0});
         }
-        const OCSFrame frame({1,2,3});
+        const CartesianFrame frame({1,2,3});
         const auto tilted=Drafting::chamferLines(createLine(frame.toWorld({0,0},7),frame.toWorld({10,0},7)),
                                                 createLine(frame.toWorld({10,0},7),frame.toWorld({10,10},7)),2,3);
         connected(tilted,true,false);
@@ -71,9 +71,9 @@ int main() {
         rejects([&] { Drafting::chamferLines(a,createLine({10,0,4},{10,10,4}),2,3); });
         rejects([&] { Drafting::chamferLines(a,createCircle({0,0,0},2),2,3); });
         rejects([&] { Drafting::chamferLines("0\nLINE\n10\n0\n20\n0\n11\n0\n21\n0\n",b,2,3); });
-        const auto source=DXFDocument::parse(DXFDocument::empty().serialize({}, {}, {a,b}));
+        const auto source=Drawing::parse(Drawing::empty().serialize({}, {}, {a,b}));
         const auto result=Drafting::chamferLines(source.entities[0]->raw(),source.entities[1]->raw(),2,3);
-        const auto restored=DXFDocument::parse(source.serialize({{0,result.first},{1,result.second}}, {}, {result.connector}));
+        const auto restored=Drawing::parse(source.serialize({{0,result.first},{1,result.second}}, {}, {result.connector}));
         check(restored.entities.size()==3 && restored.entities[0]->handle()==source.entities[0]->handle() && restored.entities[1]->handle()==source.entities[1]->handle(),"Chamfer export lost source handles");
         check(restored.entities[2]->handle()!=restored.entities[0]->handle() && restored.entities[2]->handle()!=restored.entities[1]->handle(),"Chamfer connector handle collision");
         same(restored.entities[2]->geometry().segments[0].start,{8,0,3});

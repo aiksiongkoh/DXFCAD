@@ -126,7 +126,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     source.unlink()
     doc = FreeCAD.openDocument(str(saved))
     root = doc.getObject(root_name)
-    parsed = DXFCAD.DXFDocument.parse(base64.b64decode(root.DXFSourceData))
+    parsed = DXFCAD.Drawing.parse(base64.b64decode(root.DXFSourceData))
     verify_view(parsed.viewports[0],doc)
     restored_baseline = {o.Name:o.ViewObject.Visibility for o in doc.Objects}
     preview = LayerVisibilityPreview(root)
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert {o.Name:o.ViewObject.Visibility for o in doc.Objects} == restored_baseline
     output = folder/"restored.dxf"
     export_dxf(output,doc,root)
-    assert output.read_bytes() == DXFCAD.DXFDocument.parse(drawing).serialize_bytes()
+    assert output.read_bytes() == DXFCAD.Drawing.parse(drawing).serialize_bytes()
     verify_view(parsed.viewports[2],doc,preview)
     FreeCAD.closeDocument(doc.Name)
     preview.restore()  # Closed documents must not leave stale object access.
@@ -149,7 +149,7 @@ for index, filename in enumerate(json.loads(os.environ.get("DXFCAD_VALIDATION_FI
     original = source.read_bytes()
     doc = import_dxf(source)
     root = selected_drawing()
-    parsed = DXFCAD.DXFDocument.parse(base64.b64decode(root.DXFSourceData))
+    parsed = DXFCAD.Drawing.parse(base64.b64decode(root.DXFSourceData))
     case = {"case":index+1,"viewports":len(parsed.viewports),"navigated":0,"frozen_layer_views":0}
     baseline = {o.Name:o.ViewObject.Visibility for o in doc.Objects}
     preview = LayerVisibilityPreview(root)

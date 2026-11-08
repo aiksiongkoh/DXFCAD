@@ -16,31 +16,31 @@ void editPlanTests() {
     const std::string line="0\nLINE\n5\nAB\n10\n0\n20\n0\n11\n10\n21\n0\n1001\nTEST\n1000\nretained\n";
     const std::string circle="0\nCIRCLE\n5\nBC\n10\n20\n20\n0\n40\n5\n";
     const auto original=drawing(line+circle+"0\nSPLINE\n999\nopaque\n");
-    const auto source=DXFDocument::parse(original);
+    const auto source=Drawing::parse(original);
     const std::vector<std::pair<int,std::string>> live{{0,line},{1,circle}};
     const auto split=Contour::split(line,{3,7});
-    const ContourEditPlan plan(source,live,{0},split);
+    const ContourChangeSet plan(source,live,{0},split);
     check(plan.preservesFirst() && plan.records().size()==3);
     check(parseEntity(plan.records()[0])->handle()=="AB");
     check(parseEntity(plan.records()[1])->handle().empty());
-    check(DXFDocument::parse(plan.drawingBytes()).entities.size()==4);
+    check(Drawing::parse(plan.drawingBytes()).entities.size()==4);
     check(plan.drawingBytes().find("opaque")!=std::string::npos);
-    const ContourEditPlan replaced(source,live,{1},Contour::breakBetween(circle,1,4));
+    const ContourChangeSet replaced(source,live,{1},Contour::breakBetween(circle,1,4));
     check(!replaced.preservesFirst() && parseEntity(replaced.records()[0])->handle().empty());
-    check(DXFDocument::parse(replaced.drawingBytes()).entities.back()->type()=="ARC");
-    const ContourEditPlan forceNew(source,live,{0},{line},false);
+    check(Drawing::parse(replaced.drawingBytes()).entities.back()->type()=="ARC");
+    const ContourChangeSet forceNew(source,live,{0},{line},false);
     check(!forceNew.preservesFirst() && parseEntity(forceNew.records()[0])->handle().empty());
-    const auto empty=DXFDocument::empty(4);
+    const auto empty=Drawing::empty(4);
     const auto a=createLine({0,0,0},{5,0,0}), b=createLine({5,0,0},{5,5,0});
-    const ContourEditPlan joined(empty,{{-1,a},{-1,b}},{0,1},{Contour::join({a,b})},false);
-    check(!joined.preservesFirst() && DXFDocument::parse(joined.drawingBytes()).entities.size()==1);
-    rejects([&]{ContourEditPlan(source,live,{},split);});
-    rejects([&]{ContourEditPlan(source,live,{0},{});});
-    rejects([&]{ContourEditPlan(source,live,{0,0},split);});
-    rejects([&]{ContourEditPlan(source,live,{2},split);});
-    rejects([&]{ContourEditPlan(source,{{0,line},{0,line}},{0},split);});
-    rejects([&]{ContourEditPlan(source,live,{0},{"0\nCIRCLE\n40\n-1\n"});});
-    check(source.serialize()==DXFDocument::parse(original).serialize());
+    const ContourChangeSet joined(empty,{{-1,a},{-1,b}},{0,1},{Contour::join({a,b})},false);
+    check(!joined.preservesFirst() && Drawing::parse(joined.drawingBytes()).entities.size()==1);
+    rejects([&]{ContourChangeSet(source,live,{},split);});
+    rejects([&]{ContourChangeSet(source,live,{0},{});});
+    rejects([&]{ContourChangeSet(source,live,{0,0},split);});
+    rejects([&]{ContourChangeSet(source,live,{2},split);});
+    rejects([&]{ContourChangeSet(source,{{0,line},{0,line}},{0},split);});
+    rejects([&]{ContourChangeSet(source,live,{0},{"0\nCIRCLE\n40\n-1\n"});});
+    check(source.serialize()==Drawing::parse(original).serialize());
 }
 void splitTests() {
     const std::string raw="0\nLINE\n5\nAB\n330\nF\n10\n0\n20\n0\n30\n2\n11\n10\n21\n0\n31\n2\n1001\nAPP\n1000\nretain\n";
@@ -56,8 +56,8 @@ void splitTests() {
     rejects([&]{Contour::split(raw,{0,10});});
     rejects([&]{Contour::split(raw,{-1});});
     rejects([&]{Contour::breakBetween(raw,0,10);});
-    const auto doc=DXFDocument::parse(drawing(raw));
-    auto roundtrip=DXFDocument::parse(doc.serialize({{0,pieces[0]}},{},{pieces[1]}));
+    const auto doc=Drawing::parse(drawing(raw));
+    auto roundtrip=Drawing::parse(doc.serialize({{0,pieces[0]}},{},{pieces[1]}));
     check(roundtrip.entities.size()==2 && roundtrip.warnings.empty());
     check(roundtrip.entities[1]->handle()!="AB");
     const std::string curved="0\nLWPOLYLINE\n5\nBC\n90\n3\n70\n128\n38\n3\n210\n0\n220\n1\n230\n0\n10\n0\n20\n0\n42\n1\n40\n2\n41\n6\n91\n7\n10\n10\n20\n0\n91\n8\n10\n15\n20\n0\n91\n9\n1001\nAPP\n1000\nkeep\n";
@@ -80,17 +80,17 @@ void splitTests() {
     check(parseEntity(pieces[0])->type()=="ARC"); near(Contour::length(pieces[0]),3);
     near(Contour::length(pieces[0])+Contour::length(pieces[1]),4*std::acos(-1.0));
     rejects([&]{Contour::distanceAtPoint(circle,{0,0,0});});
-    const auto widthOverride=createLWPolyline(LWPolylineEntity({{0,0,0,0,0,false},{5,0,0,0,0,true},{10,0}},false,4));
+    const auto widthOverride=createLWPolyline(DXFLWPolyline({{0,0,0,0,0,false},{5,0,0,0,0,true},{10,0}},false,4));
     pieces=Contour::split(widthOverride,{3});
     check(readLWPolyline(pieces[0]).widthRegions().empty());
 }
 void closeJoinTests() {
-    auto raw=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10},{0,0}},false));
+    auto raw=createLWPolyline(DXFLWPolyline({{0,0},{10,0},{10,10},{0,0}},false));
     auto closed=Contour::close(raw);
     check(readLWPolyline(closed).closed() && readLWPolyline(closed).vertices().size()==3);
     near(Contour::length(closed),Contour::length(raw));
     check(Contour::close(closed)==closed);
-    raw=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10,5}},false));
+    raw=createLWPolyline(DXFLWPolyline({{0,0},{10,0},{10,10,5}},false));
     closed=Contour::close(raw);
     near(readLWPolyline(closed).vertices().back().bulge,0);
     rejects([&]{Contour::close(createLine({0,0,0},{1,0,0}));});
@@ -106,7 +106,7 @@ void closeJoinTests() {
     rejects([&]{Contour::join({a,b,createLine({10,0,2},{20,0,2})});});
     rejects([&]{Contour::join({a,createLine({10,0,3},{10,10,3})});});
     rejects([&]{Contour::join({a,Drafting::properties(b,"Other",256,true)});});
-    const auto tilted= createLWPolyline(LWPolylineEntity({{0,0,1,2,6,true},{10,0}},false,0,3,{0,1,0}));
+    const auto tilted= createLWPolyline(DXFLWPolyline({{0,0,1,2,6,true},{10,0}},false,0,3,{0,1,0}));
     const auto line=createLine({-10,3,0},{-15,3,0});
     joined=Contour::join({line,tilted});
     near(Contour::length(joined),5+5*std::acos(-1.0));
@@ -118,7 +118,7 @@ void closeJoinTests() {
     check(found);
     joined=Contour::join({createLine({0,0,0},{10,0,0}),createLine({0,0,10},{0,0,0})});
     near(Contour::length(joined),20);
-    raw=createLWPolyline(LWPolylineEntity({{0,0},{10,0},{10,10},{0,0,0,0,0,true}},false,4));
+    raw=createLWPolyline(DXFLWPolyline({{0,0},{10,0},{10,10},{0,0,0,0,0,true}},false,4));
     check(readLWPolyline(Contour::close(raw)).widthRegions().empty());
 }
 void interiorTests() {
@@ -131,9 +131,9 @@ void interiorTests() {
     rejects([&]{Contour::trimInterior(line,{a,b},3);});
     rejects([&]{Contour::trimInterior(line,{createLine({2,0,2},{8,0,2})},5);});
     rejects([&]{Contour::trimInterior(line,{createCircle({5,1,2},1)},5);}); // tangent only
-    const auto touching=createLWPolyline(LWPolylineEntity({{3,0},{4,2},{2,2}},true,0,2));
+    const auto touching=createLWPolyline(DXFLWPolyline({{3,0},{4,2},{2,2}},true,0,2));
     rejects([&]{Contour::trimInterior(line,{touching},5);}); // polygon vertex only touches
-    const auto touchingOpen=createLWPolyline(LWPolylineEntity({{2,2},{3,0},{4,2}},false,0,2));
+    const auto touchingOpen=createLWPolyline(DXFLWPolyline({{2,2},{3,0},{4,2}},false,0,2));
     rejects([&]{Contour::trimInterior(line,{touchingOpen},5);});
     const auto circle=createCircle({0,0,2},5);
     pieces=Contour::trimInterior(circle,{createLine({0,-10,2},{0,10,2})},1);

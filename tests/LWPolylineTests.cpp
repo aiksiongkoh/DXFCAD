@@ -1,4 +1,4 @@
-#include <DXFCAD/LWPolylineEntity.h>
+#include <DXFCAD/DXFLWPolyline.h>
 
 #include <iostream>
 #include <limits>
@@ -28,7 +28,7 @@ void rejects(Function construct)
 
 void checkDefaults()
 {
-    const DXFCAD::LWPolylineEntity polyline;
+    const DXFCAD::DXFLWPolyline polyline;
     check(polyline.vertices().empty(), "Default vertices");
     check(!polyline.closed(), "Default closed state");
     check(polyline.constantWidth() == 0.0, "Default width");
@@ -44,7 +44,7 @@ void checkPreservation()
         {9.0, 3.0, 2.0, 1.5, 2.5},
         {-4.0, 8.0, 0.0, 0.0, 0.0},
     };
-    const DXFCAD::LWPolylineEntity polyline(vertices, true, 4.0, -7.5, {2.0, -3.0, 4.0});
+    const DXFCAD::DXFLWPolyline polyline(vertices, true, 4.0, -7.5, {2.0, -3.0, 4.0});
     check(polyline.vertices().size() == vertices.size(), "Vertex count changed");
     for (std::size_t i = 0; i < vertices.size(); ++i) {
         const auto& actual = polyline.vertices()[i];
@@ -61,42 +61,42 @@ void checkPreservation()
               && polyline.extrusion().z == 4.0, "Extrusion was normalized or changed");
     vertices[0].x = 100.0;
     check(polyline.vertices()[0].x == 1.25, "Polyline must own its native data");
-    const DXFCAD::LWPolylineEntity open(polyline.vertices());
+    const DXFCAD::DXFLWPolyline open(polyline.vertices());
     check(!open.closed() && open.vertices().back().x == -4.0,
           "Open polyline must preserve its last vertex");
 }
 
 void checkValidation()
 {
-    using DXFCAD::LWPolylineEntity;
+    using DXFCAD::DXFLWPolyline;
     using DXFCAD::LWPolylineVertex;
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const double inf = std::numeric_limits<double>::infinity();
     for (const double invalid : {-1.0, nan, inf, -inf}) {
-        rejects([=] { LWPolylineEntity p({}, false, invalid); });
-        rejects([=] { LWPolylineEntity p({{0.0, 0.0, 0.0, invalid, 0.0}}); });
-        rejects([=] { LWPolylineEntity p({{0.0, 0.0, 0.0, 0.0, invalid}}); });
+        rejects([=] { DXFLWPolyline p({}, false, invalid); });
+        rejects([=] { DXFLWPolyline p({{0.0, 0.0, 0.0, invalid, 0.0}}); });
+        rejects([=] { DXFLWPolyline p({{0.0, 0.0, 0.0, 0.0, invalid}}); });
     }
     for (const double invalid : {nan, inf, -inf}) {
-        rejects([=] { LWPolylineEntity p({}, false, 0.0, invalid); });
+        rejects([=] { DXFLWPolyline p({}, false, 0.0, invalid); });
         for (int component = 0; component < 3; ++component) {
             rejects([=] {
                 LWPolylineVertex vertex;
                 if (component == 0) vertex.x = invalid;
                 if (component == 1) vertex.y = invalid;
                 if (component == 2) vertex.bulge = invalid;
-                LWPolylineEntity p({vertex});
+                DXFLWPolyline p({vertex});
             });
             rejects([=] {
-                DXFCAD::ExtrusionDirection direction;
+                DXFCAD::Vector3D direction{0, 0, 1};
                 if (component == 0) direction.x = invalid;
                 if (component == 1) direction.y = invalid;
                 if (component == 2) direction.z = invalid;
-                LWPolylineEntity p({}, false, 0.0, 0.0, direction);
+                DXFLWPolyline p({}, false, 0.0, 0.0, direction);
             });
         }
     }
-    rejects([] { LWPolylineEntity p({}, false, 0.0, 0.0, {0.0, 0.0, 0.0}); });
+    rejects([] { DXFLWPolyline p({}, false, 0.0, 0.0, {0.0, 0.0, 0.0}); });
 }
 
 } // namespace

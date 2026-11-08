@@ -1,5 +1,8 @@
 #pragma once
 
+#include <DXFCAD/Point2D.h>
+#include <DXFCAD/Vector3D.h>
+
 #include <optional>
 #include <vector>
 
@@ -17,17 +20,6 @@ struct LWPolylineVertex {
     bool hasWidths = false;
 };
 
-struct ExtrusionDirection {
-    double x = 0.0;
-    double y = 0.0;
-    double z = 1.0;
-};
-
-struct Point2D {
-    double x;
-    double y;
-};
-
 struct LWPolylineArc {
     Point2D center;
     Point2D midpoint; // A point halfway along the directed arc, including major arcs.
@@ -39,12 +31,6 @@ struct LWPolylineSegment {
     Point2D start;
     Point2D end;
     std::optional<LWPolylineArc> arc; // No arc means a straight segment.
-};
-
-struct Vector3D {
-    double x;
-    double y;
-    double z;
 };
 
 struct LWPolylineArc3D {

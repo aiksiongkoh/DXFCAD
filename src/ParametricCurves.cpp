@@ -1,6 +1,6 @@
 #include <DXFCAD/ParametricCurves.h>
 #include <DXFCAD/Drafting.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -16,12 +16,12 @@ double dot(Vector3D a,Vector3D b) { return a.x*b.x+a.y*b.y+a.z*b.z; }
 double norm(Vector3D a) { return std::hypot(a.x,a.y,a.z); }
 Vector3D cross(Vector3D a,Vector3D b) { return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x}; }
 }
-EllipseCurve::EllipseCurve(DXFRecord record) : DXFEntity(std::move(record))
+DXFEllipse::DXFEllipse(GroupSequence record) : DXFEntity(std::move(record))
 {
     const auto f=nativeEntityFields(record_);
     center_={f.number(10),f.number(20),f.number(30)};
     major_={f.number(11),f.number(21),f.number(31)};
-    const OCSFrame frame({f.number(210),f.number(220),f.number(230,1)});
+    const CartesianFrame frame({f.number(210),f.number(220),f.number(230,1)});
     const auto normal=frame.normal();
     const double length=norm(major_),ratio=f.number(40);
     if (length<=0 || ratio<=0 || ratio>1 || std::abs(dot(major_,normal))>1e-9*length)
@@ -31,19 +31,19 @@ EllipseCurve::EllipseCurve(DXFRecord record) : DXFEntity(std::move(record))
     if (end_<=start_) end_+=2*pi;
     if (end_-start_>2*pi+1e-12) throw std::invalid_argument("ELLIPSE parameter range exceeds a turn");
 }
-Vector3D EllipseCurve::atParameter(double t) const
+Vector3D DXFEllipse::atParameter(double t) const
 {
     return {center_.x+major_.x*std::cos(t)+minor_.x*std::sin(t),
             center_.y+major_.y*std::cos(t)+minor_.y*std::sin(t),
             center_.z+major_.z*std::cos(t)+minor_.z*std::sin(t)};
 }
-double EllipseCurve::radiusOfCurvature(double t) const
+double DXFEllipse::radiusOfCurvature(double t) const
 {
     const auto a=norm(major_),b=norm(minor_);
     const double x=-a*std::sin(t),y=b*std::cos(t);
     return std::pow(x*x+y*y,1.5)/(a*b);
 }
-EntityGeometry EllipseCurve::geometry() const
+EntityGeometry DXFEllipse::geometry() const
 {
     // Conservative exact bounds; consumers requiring a curve use this native
     // parametric model. Never masquerade the ellipse as circular segments.
@@ -53,20 +53,20 @@ EntityGeometry EllipseCurve::geometry() const
         result.bounds.push_back({center_.x+x*radius.x,center_.y+y*radius.y,center_.z+z*radius.z});
     return result;
 }
-std::string EllipseCurve::translated(const Vector3D& offset) const { return translatedPoints(offset,{10},false); }
-std::vector<DXFSnapPoint> EllipseCurve::snapPoints() const
+std::string DXFEllipse::translated(const Vector3D& offset) const { return translatedPoints(offset,{10},false); }
+std::vector<SnapPoint> DXFEllipse::snapPoints() const
 {
     return {{center_,"center"},{atParameter(start_),"endpoint"},{atParameter(end_),"endpoint"}};
 }
-SplineCurve::SplineCurve(DXFRecord record) : DXFEntity(std::move(record))
+DXFSpline::DXFSpline(GroupSequence record) : DXFEntity(std::move(record))
 {
     const auto f=nativeEntityFields(record_); degree_=f.integer(71); periodic_=(f.integer(70)&2)!=0;
     for (const auto& group : f.groups) {
-        if (group.first==10) points_.push_back({DXFRecord{{group}}.number(group.first),0,0});
-        else if (group.first==20 && !points_.empty()) points_.back().y=DXFRecord{{group}}.number(group.first);
-        else if (group.first==30 && !points_.empty()) points_.back().z=DXFRecord{{group}}.number(group.first);
-        else if (group.first==40) knots_.push_back(DXFRecord{{group}}.number(group.first));
-        else if (group.first==41) weights_.push_back(DXFRecord{{group}}.number(group.first));
+        if (group.first==10) points_.push_back({GroupSequence{{group}}.number(group.first),0,0});
+        else if (group.first==20 && !points_.empty()) points_.back().y=GroupSequence{{group}}.number(group.first);
+        else if (group.first==30 && !points_.empty()) points_.back().z=GroupSequence{{group}}.number(group.first);
+        else if (group.first==40) knots_.push_back(GroupSequence{{group}}.number(group.first));
+        else if (group.first==41) weights_.push_back(GroupSequence{{group}}.number(group.first));
     }
     if (degree_<1 || points_.size()<=static_cast<std::size_t>(degree_) || knots_.size()!=points_.size()+degree_+1 ||
         !std::is_sorted(knots_.begin(),knots_.end())) throw std::invalid_argument("SPLINE needs a valid degree, control net and knot vector");
@@ -77,9 +77,9 @@ SplineCurve::SplineCurve(DXFRecord record) : DXFEntity(std::move(record))
     for (double k : knots_) if (!std::isfinite(k)) throw std::invalid_argument("Nonfinite SPLINE knot");
     if (endParameter()<=startParameter()) throw std::invalid_argument("Empty SPLINE parameter range");
 }
-double SplineCurve::startParameter() const { return knots_.at(degree_); }
-double SplineCurve::endParameter() const { return knots_.at(points_.size()); }
-Vector3D SplineCurve::atParameter(double t) const
+double DXFSpline::startParameter() const { return knots_.at(degree_); }
+double DXFSpline::endParameter() const { return knots_.at(points_.size()); }
+Vector3D DXFSpline::atParameter(double t) const
 {
     if (!std::isfinite(t) || t<startParameter() || t>endParameter()) throw std::invalid_argument("SPLINE parameter outside native domain");
     auto span=points_.size()-1;
@@ -100,8 +100,8 @@ Vector3D SplineCurve::atParameter(double t) const
     const auto h=d.back();
     return {h.x/h.w,h.y/h.w,h.z/h.w};
 }
-EntityGeometry SplineCurve::geometry() const { EntityGeometry result; result.bounds=points_; return result; }
-std::string SplineCurve::translated(const Vector3D& offset) const
+EntityGeometry DXFSpline::geometry() const { EntityGeometry result; result.bounds=points_; return result; }
+std::string DXFSpline::translated(const Vector3D& offset) const
 {
     if (!std::isfinite(offset.x) || !std::isfinite(offset.y) || !std::isfinite(offset.z)) throw std::invalid_argument("Nonfinite SPLINE displacement");
     const auto number=[](double value) {
@@ -110,7 +110,7 @@ std::string SplineCurve::translated(const Vector3D& offset) const
         stream<<std::setprecision(std::numeric_limits<double>::max_digits10)<<value;
         return stream.str();
     };
-    DXFRecord result;
+    GroupSequence result;
     bool xdata=false; int depth=0;
     for (std::size_t i=0;i<record_.groups.size();++i) {
         auto group=record_.groups[i];
@@ -122,7 +122,7 @@ std::string SplineCurve::translated(const Vector3D& offset) const
         if (!xdata && !depth && (group.first==10 || group.first==11 || group.first==20 || group.first==21 || group.first==30 || group.first==31)) {
             const auto axis=group.first/10-1;
             const double delta=axis==0 ? offset.x : axis==1 ? offset.y : offset.z;
-            if (delta!=0) group.second=number(DXFRecord{{group}}.number(group.first)+delta);
+            if (delta!=0) group.second=number(GroupSequence{{group}}.number(group.first)+delta);
             result.groups.push_back(group);
             if ((group.first==20 || group.first==21) && offset.z!=0 &&
                 (i+1==record_.groups.size() || record_.groups[i+1].first!=group.first+10))
@@ -131,7 +131,7 @@ std::string SplineCurve::translated(const Vector3D& offset) const
     }
     return result.raw();
 }
-std::vector<DXFSnapPoint> SplineCurve::snapPoints() const
+std::vector<SnapPoint> DXFSpline::snapPoints() const
 {
     return {{atParameter(startParameter()),"endpoint"},{atParameter(endParameter()),"endpoint"}};
 }
@@ -140,7 +140,7 @@ std::string affineTransformedCurve(const DXFEntity& entity,const BlockPart& tran
     const auto vector=[&](Vector3D p) {
         auto linear=transform; linear.origin={0,0,0}; return linear.transformPoint(p);
     };
-    if (const auto ellipse=dynamic_cast<const EllipseCurve*>(&entity)) {
+    if (const auto ellipse=dynamic_cast<const DXFEllipse*>(&entity)) {
         const auto u=vector(ellipse->majorAxis()),v=vector(ellipse->minorAxis());
         const auto phase=.5*std::atan2(2*dot(u,v),dot(u,u)-dot(v,v));
         const auto c=std::cos(phase),s=std::sin(phase);
@@ -161,7 +161,7 @@ std::string affineTransformedCurve(const DXFEntity& entity,const BlockPart& tran
         std::ostringstream out; out.imbue(std::locale::classic());
         out<<std::setprecision(std::numeric_limits<double>::max_digits10)<<value; return out.str();
     };
-    DXFRecord result; bool xdata=false; int depth=0;
+    GroupSequence result; bool xdata=false; int depth=0;
     const auto& groups=entity.record().groups;
     for (std::size_t i=0;i<groups.size();++i) {
         const auto& group=groups[i];
@@ -171,7 +171,7 @@ std::string affineTransformedCurve(const DXFEntity& entity,const BlockPart& tran
             else if (group.second=="}" && depth) --depth;
         }
         if (!xdata && !depth && (group.first==10 || group.first==11 || group.first==12 || group.first==13 || group.first==210)) {
-            const int code=group.first; DXFRecord pointRecord{{group}};
+            const int code=group.first; GroupSequence pointRecord{{group}};
             while (i+1<groups.size() && (groups[i+1].first==code+10 || groups[i+1].first==code+20)) pointRecord.groups.push_back(groups[++i]);
             const Vector3D point{pointRecord.number(code),pointRecord.number(code+10),pointRecord.number(code+20)};
             Vector3D moved;

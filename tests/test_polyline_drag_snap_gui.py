@@ -114,12 +114,12 @@ with tempfile.TemporaryDirectory(dir=profile) as folder:
     assert editor._snap_target(screen(5,12)) is None
     # Cached native points must follow live record, visibility, label, and
     # placement changes, and must not retain deleted objects as snap targets.
-    from dxfcad_objects import DXFObjectProxy, DXFViewProvider
+    from dxfcad_objects import EntityProxy, EntityViewProvider
     raw = "0\nLINE\n10\n3\n20\n14\n11\n8\n21\n14\n"
     line = DXFCAD.create_feature(doc, DXFCAD.parse_entity(raw), "")
     if line.TypeId == "Part::FeaturePython":
-        DXFObjectProxy(line)
-    DXFViewProvider(line.ViewObject,(0.2,0.2,0.2))
+        EntityProxy(line)
+    EntityViewProvider(line.ViewObject,(0.2,0.2,0.2))
     doc.recompute()
     assert editor._snap_target(screen(3,14)) is not None
     line.ViewObject.Visibility = False
@@ -144,8 +144,8 @@ with tempfile.TemporaryDirectory(dir=profile) as folder:
     context = "0\nBLOCK\n2\n*Snap\n"+raw.replace("0\nLINE\n", "0\nLINE\n62\n0\n")+"0\nENDBLK\n"
     dimension = DXFCAD.create_feature(doc, DXFCAD.parse_entity(dimension_raw, context), "")
     if dimension.TypeId == "Part::FeaturePython":
-        DXFObjectProxy(dimension)
-    DXFViewProvider(dimension.ViewObject,(0.2,0.2,0.2))
+        EntityProxy(dimension)
+    EntityViewProvider(dimension.ViewObject,(0.2,0.2,0.2))
     doc.recompute()
     assert editor._snap_target(screen(3,14)) is not None
     drag(3,14,"endpoint")
@@ -219,7 +219,7 @@ with tempfile.TemporaryDirectory(dir=profile) as folder:
     objects["A9"].Placement = FreeCAD.Placement()
     output = Path(folder) / "drag-export.dxf"
     export_dxf(output,doc)
-    parsed = DXFCAD.DXFDocument.read(str(output))
+    parsed = DXFCAD.Drawing.read(str(output))
     assert len(parsed.entities) == len(objects)
     result = DXFCAD.read_lwpolyline(next(e.raw for e in parsed.entities if e.handle == "A0"))
     assert result.vertices[0].x == 3 and result.vertices[0].y == 1

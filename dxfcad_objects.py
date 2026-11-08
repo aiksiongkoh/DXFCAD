@@ -38,7 +38,7 @@ def _observe_circle(provider):
     _circle_selection_observer.refresh()
 
 
-class DXFObjectProxy:
+class EntityProxy:
     """Persist native records on the object; delegate all domain work to C++."""
 
     def __init__(self, obj):
@@ -71,7 +71,7 @@ def display_color(color):
     return tuple(color)
 
 
-class DXFViewProvider:
+class EntityViewProvider:
     """Use FreeCAD's standard Part view provider for derived shapes."""
 
     def __init__(self, view_object, color):
@@ -82,6 +82,7 @@ class DXFViewProvider:
         view_object.ShapeColor = tuple(color)
         view_object.PointColor = tuple(color)
         view_object.LineWidth = 1.5
+        self._update_block_colors(view_object)
 
     def doubleClicked(self, view_object):
         if getattr(view_object.Object, "DXFType", "") == "LWPOLYLINE":
@@ -96,6 +97,7 @@ class DXFViewProvider:
 
     def attach(self, view_object):
         self.ViewObject = view_object
+        self._update_block_colors(view_object)
         if getattr(view_object.Object, "DXFType", "") == "CIRCLE":
             from pivy import coin
 
@@ -157,9 +159,24 @@ class DXFViewProvider:
     @staticmethod
     def _update_width_mode(view_object):
         show_widths = getattr(view_object.Object, "ShowWidths", False)
-        view_object.DisplayMode = "Flat Lines" if show_widths else "Wireframe"
+        filled = show_widths or getattr(view_object.Object, "DXFType", "") in ("LEADER", "DIMENSION")
+        view_object.DisplayMode = "Flat Lines" if filled else "Wireframe"
+
+    @staticmethod
+    def _update_block_colors(view_object):
+        if getattr(view_object.Object, "DXFType", "") != "INSERT":
+            return
+        import DXFCAD
+
+        lines, faces = DXFCAD.block_display_colors(view_object.Object)
+        if lines:
+            view_object.LineColorArray = [display_color(color) for color in lines]
+        if faces:
+            view_object.DiffuseColor = [display_color(color) for color in faces]
 
     def updateData(self, obj, prop):
+        if prop == "Shape":
+            self._update_block_colors(self.ViewObject)
         if prop == "ShowWidths":
             self._update_width_mode(self.ViewObject)
         if prop in ("Shape", "Placement", "DXFData") and _circle_selection_observer is not None:

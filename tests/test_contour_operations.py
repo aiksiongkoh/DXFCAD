@@ -14,7 +14,7 @@ import DXFCAD
 assert Path(DXFCAD.__file__).parent == module_directory
 from dxfcad_import import import_dxf
 from dxfcad_edit import apply_contour_plan, create_line
-from dxfcad_objects import DXFObjectProxy
+from dxfcad_objects import EntityProxy
 
 DRAWING = ("0\nSECTION\n2\nENTITIES\n0\nLINE\n5\nAB\n10\n0\n20\n0\n11\n10\n21\n0\n1001\nTEST\n1000\nretain me\n"
            "0\nLINE\n5\nAC\n10\n3\n20\n-5\n11\n3\n21\n5\n"
@@ -104,7 +104,7 @@ class ContourOperationTests(unittest.TestCase):
         self.assertEqual(DXFCAD.current_drawing_bytes(self.root), expected)
 
     def test_boundary_drawings_and_detached_boundaries_are_dependencies(self):
-        root = DXFCAD.create_drawing(self.doc, DXFCAD.DXFDocument.empty(4))
+        root = DXFCAD.create_drawing(self.doc, DXFCAD.Drawing.empty(4))
         a = create_line(self.doc, DXFCAD.Vector3D(3, -5, 0), DXFCAD.Vector3D(3, 5, 0), root)
         b = create_line(self.doc, DXFCAD.Vector3D(7, -5, 0), DXFCAD.Vector3D(7, 5, 0), root)
         plan = DXFCAD.prepare_interior_trim(self.line, [a, b], 5)
@@ -113,7 +113,7 @@ class ContourOperationTests(unittest.TestCase):
         with self.assertRaises(ValueError): plan.apply()
         self.assertEqual(self.line.DXFData, original)
         detached = DXFCAD.create_feature(self.doc, DXFCAD.parse_entity(a.DXFData), "")
-        if detached.TypeId == "Part::FeaturePython": DXFObjectProxy(detached)
+        if detached.TypeId == "Part::FeaturePython": EntityProxy(detached)
         self.doc.recompute()
         plan = DXFCAD.prepare_interior_trim(self.line, [detached, b], 5)
         raw = detached.DXFData

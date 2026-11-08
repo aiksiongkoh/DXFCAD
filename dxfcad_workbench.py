@@ -13,7 +13,7 @@ class DXFCADWorkbench(Workbench):
     def Initialize(self):
         from dxfcad_commands import (
             CheckWorkbenchCommand, ImportDXFCommand, CreatePolylineCommand,
-            EditPolylineCommand, ExportDXFCommand, SavedViewsCommand,
+            EditPolylineCommand, ExportDXFCommand, SavedViewsCommand, PaperLayoutsCommand,
             DrawLineCommand, DrawCircleCommand, DrawArcCommand, MoveCommand, CopyCommand,
             RotateCommand, ScaleCommand, MirrorCommand, RectangleCommand,
             DraftingCommand, ExtendCommand, OffsetCommand, FilletCommand,
@@ -47,13 +47,14 @@ class DXFCADWorkbench(Workbench):
         FreeCADGui.addCommand("DXFCAD_EditLWPolyline", EditPolylineCommand())
         FreeCADGui.addCommand("DXFCAD_ExportDXF", ExportDXFCommand())
         FreeCADGui.addCommand("DXFCAD_SavedViews", SavedViewsCommand())
+        FreeCADGui.addCommand("DXFCAD_PaperLayouts", PaperLayoutsCommand())
         draw = ["DXFCAD_DrawLine", "DXFCAD_DrawCircle", "DXFCAD_DrawArc", "DXFCAD_Rectangle",
                 "DXFCAD_CreateLWPolyline", "DXFCAD_CreateText"]
         modify = ["DXFCAD_Move", "DXFCAD_Copy", "DXFCAD_Rotate", "DXFCAD_Scale",
                   "DXFCAD_Mirror", "DXFCAD_Offset", "DXFCAD_FilletLines", "DXFCAD_ChamferLines", "DXFCAD_Properties"]
         detail = ["DXFCAD_Trim", "DXFCAD_Extend", "DXFCAD_Fillet", "DXFCAD_Chamfer",
                   "DXFCAD_EditLWPolyline", "DXFCAD_EditText"]
-        drawing = ["DXFCAD_ImportDXF", "DXFCAD_ExportDXF", "DXFCAD_SavedViews"]
+        drawing = ["DXFCAD_ImportDXF", "DXFCAD_ExportDXF", "DXFCAD_SavedViews", "DXFCAD_PaperLayouts"]
         contours=["DXFCAD_Join","DXFCAD_Split","DXFCAD_Break","DXFCAD_Close","DXFCAD_TrimInterior"]
         self.appendToolbar("DXFCAD Draw", draw)
         self.appendToolbar("DXFCAD Modify", modify)

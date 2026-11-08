@@ -17,10 +17,10 @@ std::string record(Vector3D center,double radius,Vector3D startDirection,Vector3
     finite(center);
     if (!std::isfinite(radius) || radius<=0) throw std::invalid_argument("ARC radius must be positive and finite");
     if (layer.empty() || layer.find_first_of("\r\n")!=std::string::npos) throw std::invalid_argument("Invalid ARC layer name");
-    const OCSFrame frame({normal.x,normal.y,normal.z});
+    const CartesianFrame frame({normal.x,normal.y,normal.z});
     const auto c=frame.fromWorld(center), a=frame.fromWorld(startDirection), b=frame.fromWorld(endDirection);
     auto degrees=[](Vector3D v) { return Detail::wrap(std::atan2(v.y,v.x))*180/Detail::pi; };
-    DXFRecord raw{{{0,"ARC"},{100,"AcDbEntity"},{8,layer},{100,"AcDbCircle"},
+    GroupSequence raw{{{0,"ARC"},{100,"AcDbEntity"},{8,layer},{100,"AcDbCircle"},
                    {10,"0"},{20,"0"},{30,"0"},{40,"1"},{210,"0"},{220,"0"},{230,"1"},
                    {100,"AcDbArc"},{50,"0"},{51,"90"}}};
     const auto result=patchEntityFields(raw,{{10,c.x},{20,c.y},{30,c.z},{40,radius},
@@ -62,7 +62,7 @@ std::string createArcThroughPoints(const Vector3D& start,const Vector3D& through
     const double radius=std::hypot(cx,cy);
     const auto raw=record(center,radius,sub3(start,center),sub3(end,center),normal,layer);
     const auto edge=parseEntity(raw)->geometry().segments.at(0);
-    const OCSFrame frame({normal.x,normal.y,normal.z});
+    const CartesianFrame frame({normal.x,normal.y,normal.z});
     const auto p=frame.fromWorld(sub3(through,center));
     const auto fields=nativeEntityFields(parseEntity(raw)->record());
     const double middle=Detail::wrap(std::atan2(p.y,p.x)-fields.number(50)*Detail::pi/180);

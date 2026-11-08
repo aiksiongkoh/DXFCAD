@@ -14,7 +14,7 @@ void positiveFinite(double value, const char* message) {
 }
 namespace {
 struct Corner {
-    LWPolylineEntity model;
+    DXFLWPolyline model;
     std::size_t previous, next;
     double ux,uy,vx,vy,la,lb,theta,turn;
 };
@@ -57,7 +57,7 @@ std::string replaceCorner(const std::string& raw,std::size_t index,const Corner&
     std::vector<int> origins;
     for (std::size_t i=0; i<c.model.vertices().size(); ++i) origins.push_back(static_cast<int>(i));
     origins.insert(origins.begin()+index+1,-1);
-    return updateLWPolyline(raw,LWPolylineEntity(vertices,c.model.closed(),width,c.model.elevation(),c.model.extrusion()),origins);
+    return updateLWPolyline(raw,DXFLWPolyline(vertices,c.model.closed(),width,c.model.elevation(),c.model.extrusion()),origins);
 }
 }
 std::string Drafting::properties(const std::string& raw,const std::string& layer,int color,bool visible,const std::string& context) {
@@ -72,10 +72,10 @@ std::string Drafting::properties(const std::string& raw,const std::string& layer
 std::string Drafting::setLayer(const std::string& drawing,const std::string& name,int color,bool on) {
     if (name.empty() || name.find_first_of("\r\n")!=std::string::npos) throw std::invalid_argument("Invalid layer name");
     if (color<1 || color>255) throw std::invalid_argument("Layer ACI color must be between 1 and 255");
-    DXFDocument::parse(drawing);
+    Drawing::parse(drawing);
     const auto all=readDXFGroups(drawing);
     if (all.groups.empty()) throw std::invalid_argument("Drawing is empty");
-    std::vector<DXFRecord> records;
+    std::vector<GroupSequence> records;
     for (const auto& g : all.groups) {
         if (g.first==0 || records.empty()) records.emplace_back();
         records.back().groups.push_back(g);
@@ -104,7 +104,7 @@ std::string Drafting::setLayer(const std::string& drawing,const std::string& nam
         for (unsigned char c : name) if (c<128 && !(std::isalnum(c) || c==' ' || c=='_' || c=='-' || c=='.' || c=='$'))
             throw std::invalid_argument("New layer names allow letters, digits, spaces, underscore, hyphen, dot, dollar sign, and Unicode");
         auto upper=[](std::string value) { for (auto& c : value) c=static_cast<char>(std::toupper(static_cast<unsigned char>(c))); return value; };
-        for (const auto& [existing,layer] : DXFDocument::parse(drawing).layers)
+        for (const auto& [existing,layer] : Drawing::parse(drawing).layers)
             if (existing!=name && upper(existing)==upper(name)) throw std::invalid_argument("Layer already exists as "+existing+"; choose that spelling");
         unsigned long long next=1;
         for (const auto& g : all.groups) if (g.first==5 || g.first==105) {
@@ -119,10 +119,10 @@ std::string Drafting::setLayer(const std::string& drawing,const std::string& nam
         auto hex=[](unsigned long long n) { std::ostringstream out; out<<std::uppercase<<std::hex<<n; return out.str(); };
         auto take=[&] { if (next==std::numeric_limits<unsigned long long>::max()) throw std::overflow_error("DXF handle space exhausted"); return hex(next++); };
         auto makeLayer=[&](const std::string& layerName,int layerColor,bool layerOn,const std::string& owner) {
-            DXFRecord result;
+            GroupSequence result;
             result.groups={{0,"LAYER"},{5,take()}};
             if (!owner.empty()) result.groups.emplace_back(330,owner);
-            for (const auto& g : DXFRecord{{{100,"AcDbSymbolTableRecord"},{100,"AcDbLayerTableRecord"},{2,layerName},{70,"0"},{62,std::to_string(layerOn ? layerColor : -layerColor)},{6,"CONTINUOUS"}}}.groups) result.groups.push_back(g);
+            for (const auto& g : GroupSequence{{{100,"AcDbSymbolTableRecord"},{100,"AcDbLayerTableRecord"},{2,layerName},{70,"0"},{62,std::to_string(layerOn ? layerColor : -layerColor)},{6,"CONTINUOUS"}}}.groups) result.groups.push_back(g);
             return result;
         };
         if (table!=absent && tableEnd!=absent) {
@@ -131,16 +131,16 @@ std::string Drafting::setLayer(const std::string& drawing,const std::string& nam
             records.insert(records.begin()+tableEnd,makeLayer(name,color,on,owner));
         } else {
             const auto owner=take();
-            std::vector<DXFRecord> extra;
+            std::vector<GroupSequence> extra;
             const bool zero=name!="0";
-            extra.push_back(DXFRecord{{{0,"TABLE"},{2,"LAYER"},{5,owner},{100,"AcDbSymbolTable"},{70,zero ? "2" : "1"}}});
+            extra.push_back(GroupSequence{{{0,"TABLE"},{2,"LAYER"},{5,owner},{100,"AcDbSymbolTable"},{70,zero ? "2" : "1"}}});
             if (zero) extra.push_back(makeLayer("0",7,true,owner));
             extra.push_back(makeLayer(name,color,on,owner));
-            extra.push_back(DXFRecord{{{0,"ENDTAB"}}});
+            extra.push_back(GroupSequence{{{0,"ENDTAB"}}});
             if (tablesEnd!=absent) records.insert(records.begin()+tablesEnd,extra.begin(),extra.end());
             else {
-                extra.insert(extra.begin(),DXFRecord{{{0,"SECTION"},{2,"TABLES"}}});
-                extra.push_back(DXFRecord{{{0,"ENDSEC"}}});
+                extra.insert(extra.begin(),GroupSequence{{{0,"SECTION"},{2,"TABLES"}}});
+                extra.push_back(GroupSequence{{{0,"ENDSEC"}}});
                 const auto at=entitiesBegin!=absent ? entitiesBegin : records.size()-1;
                 records.insert(records.begin()+at,extra.begin(),extra.end());
             }
@@ -148,10 +148,10 @@ std::string Drafting::setLayer(const std::string& drawing,const std::string& nam
         for (auto& record : records) for (std::size_t i=0; i+1<record.groups.size(); ++i)
             if (record.groups[i].first==9 && record.groups[i].second=="$HANDSEED" && record.groups[i+1].first==5) record.groups[i+1].second=hex(next);
     }
-    DXFRecord output;
+    GroupSequence output;
     for (const auto& record : records) output.groups.insert(output.groups.end(),record.groups.begin(),record.groups.end());
     const auto result=output.raw();
-    DXFDocument::parse(result);
+    Drawing::parse(result);
     return result;
 }
 TextGeometry Drafting::textInfo(const std::string& raw) {
@@ -178,7 +178,7 @@ std::string Drafting::editText(const std::string& raw,const std::string& content
         }
     }
     if (!info.multiline && encoded.size()>250) throw std::invalid_argument("Use MTEXT for content longer than 250 bytes");
-    DXFRecord replacement;
+    GroupSequence replacement;
     std::size_t position=0;
     while (info.multiline && encoded.size()-position>250) {
         std::size_t end=position+250;
@@ -188,7 +188,7 @@ std::string Drafting::editText(const std::string& raw,const std::string& content
     }
     replacement.groups.emplace_back(1,encoded.substr(position));
     const auto record=parseEntity(raw)->record();
-    DXFRecord result;
+    GroupSequence result;
     int depth=0; bool xdata=false, inserted=false;
     auto insert=[&] { if (!inserted) { result.groups.insert(result.groups.end(),replacement.groups.begin(),replacement.groups.end()); inserted=true; } };
     for (const auto& g : record.groups) {
@@ -208,7 +208,7 @@ std::string Drafting::editText(const std::string& raw,const std::string& content
 }
 std::string Drafting::createText(const std::string& content,double height,const Vector3D& origin,bool multiline,double width,const std::string& layer) {
     if (layer.empty() || layer.find_first_of("\r\n")!=std::string::npos) throw std::invalid_argument("Invalid text layer name");
-    DXFRecord record;
+    GroupSequence record;
     record.groups={{0,multiline ? "MTEXT" : "TEXT"},{100,"AcDbEntity"},{8,layer},{100,multiline ? "AcDbMText" : "AcDbText"},
                    {10,"0"},{20,"0"},{30,"0"},{40,"1"},{1,""}};
     if (multiline) { record.groups.emplace_back(41,"0"); record.groups.emplace_back(71,"1"); }

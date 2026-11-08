@@ -1,5 +1,5 @@
 #pragma once
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 
 namespace DXFCAD {
 // General native-record conversions. No downstream application dependency.

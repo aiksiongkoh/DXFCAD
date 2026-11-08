@@ -51,7 +51,7 @@ class ContourTests(unittest.TestCase):
         self.assertEqual(len([o for o in self.doc.Objects if "DXFData" in o.PropertiesList]),4)
         out=Path(self.folder.name)/"out.dxf"
         export_dxf(out,self.doc)
-        parsed=DXFCAD.DXFDocument.read(str(out))
+        parsed=DXFCAD.Drawing.read(str(out))
         self.assertEqual(len(parsed.entities),4)
         self.assertEqual(parsed.warnings,[])
         self.assertEqual(len({e.handle for e in parsed.entities}),4)
@@ -91,7 +91,7 @@ print('Contour cold restore passed')
         self.doc.redo(); self.doc.recompute()
         out=Path(self.folder.name)/"break.dxf"
         export_dxf(out,self.doc)
-        types=[e.type for e in DXFCAD.DXFDocument.read(str(out)).entities]
+        types=[e.type for e in DXFCAD.Drawing.read(str(out)).entities]
         self.assertEqual(types,["LINE","ARC"])
 
     def test_plan_preview_matches_applied_drawing_and_is_one_shot(self):
@@ -99,6 +99,7 @@ print('Contour cold restore passed')
         source=self.line.DXFSourceRoot.DXFSourceData
         records=DXFCAD.Contour.split(LINE,[3,7])
         plan=DXFCAD.prepare_contour_edit([self.line],records)
+        self.assertIs(type(plan), DXFCAD.ContourObjectEditPlan)
         self.assertTrue(plan.preserves_first)
         self.assertEqual([raw for obj,raw in plan.preview_records],records)
         self.assertEqual({o.Name for o in self.doc.Objects},names)
@@ -130,7 +131,7 @@ print('Contour cold restore passed')
 
     def test_invalid_selection_and_result_leave_drawing_unchanged(self):
         from dxfcad_edit import create_line
-        root=DXFCAD.create_drawing(self.doc,DXFCAD.DXFDocument.empty(4))
+        root=DXFCAD.create_drawing(self.doc,DXFCAD.Drawing.empty(4))
         foreign=create_line(self.doc,DXFCAD.Vector3D(),DXFCAD.Vector3D(1,0,0),root)
         names={o.Name for o in self.doc.Objects}
         snapshot=self.line.DXFSourceRoot.DXFSourceData
@@ -151,7 +152,7 @@ print('Contour cold restore passed')
         root=self.line.DXFSourceRoot
         plan=DXFCAD.prepare_contour_edit([self.line],DXFCAD.Contour.split(LINE,[3]))
         source=DXFCAD.drawing_document(root)
-        DXFCAD.set_drawing_source(root,DXFCAD.DXFDocument.parse(DXFCAD.set_layer(source.serialize(),"Extra",3,True)))
+        DXFCAD.set_drawing_source(root,DXFCAD.Drawing.parse(DXFCAD.set_layer(source.serialize(),"Extra",3,True)))
         with self.assertRaisesRegex(ValueError,"changed"):
             plan.apply()
         self.assertEqual(self.line.DXFData,LINE)

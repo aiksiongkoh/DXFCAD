@@ -38,14 +38,14 @@ def synthetic():
     # Drawing construction here is a test fixture, not production DXF logic.
     vertices = [DXFCAD.LWPolylineVertex(i, 2*math.sin(i/10), 0.05 if i%3 == 0 else 0)
                 for i in range(120)]
-    records = [DXFCAD.create_lwpolyline(DXFCAD.LWPolylineEntity(vertices))]
+    records = [DXFCAD.create_lwpolyline(DXFCAD.DXFLWPolyline(vertices))]
     for i in range(1000):
         x,y = (i%50)*3, (i//50)*3+20
         records.append(f"0\nLINE\n5\n{i+256:X}\n8\n0\n10\n{x}\n20\n{y}\n11\n{x+1}\n21\n{y+1}\n")
     for i in range(100):
         records.append(f"0\nCIRCLE\n5\n{i+4096:X}\n10\n{i%25*5}\n20\n{i//25*5+85}\n40\n0.5\n")
-    for extrusion in [DXFCAD.ExtrusionDirection(), DXFCAD.ExtrusionDirection(1,2,3), DXFCAD.ExtrusionDirection(0,0,-2)]:
-        wide = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,-10,0.4,0.4,0.8,True),
+    for extrusion in [DXFCAD.Vector3D(0,0,1), DXFCAD.Vector3D(1,2,3), DXFCAD.Vector3D(0,0,-2)]:
+        wide = DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(0,-10,0.4,0.4,0.8,True),
                                   DXFCAD.LWPolylineVertex(10,-10,-0.2,0.8,0.4,True),
                                   DXFCAD.LWPolylineVertex(10,-5,0,0.4,0.4,True),
                                   DXFCAD.LWPolylineVertex(0,-5,0,0.4,0.4,True)],
@@ -63,7 +63,7 @@ def validate(path, folder, label, generated=False):
     save_report()
     original_bytes = path.read_bytes()
     started = time.perf_counter()
-    parsed = DXFCAD.DXFDocument.read(str(path))
+    parsed = DXFCAD.Drawing.read(str(path))
     case["parse_seconds"] = time.perf_counter()-started
     case["source_bytes"] = len(original_bytes)
     case["supported_entities"] = len(parsed.entities)
@@ -156,7 +156,7 @@ def validate(path, folder, label, generated=False):
     case["save_restore_seconds"] = time.perf_counter()-started
     assert records == {obj.Name:obj.DXFData for obj in restored.Objects if "DXFData" in obj.PropertiesList}
     export_dxf(folder / "edited.dxf", restored)
-    reparsed = DXFCAD.DXFDocument.read(str(folder / "edited.dxf"))
+    reparsed = DXFCAD.Drawing.read(str(folder / "edited.dxf"))
     assert len(reparsed.entities) == len(parsed.entities)
     assert len(reparsed.warnings) == len(parsed.warnings)
     if not generated:

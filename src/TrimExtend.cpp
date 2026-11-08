@@ -20,10 +20,10 @@ std::string Drafting::trim(const std::string& raw,const std::string& boundary,bo
     const auto geometry=target->geometry(), edge=cutter->geometry();
     if (geometry.segments.empty()) throw std::invalid_argument("Target has no segments");
     Vector3D n=normal(geometry);
-    if (type=="LWPOLYLINE") n=OCSFrame(readLWPolyline(raw).extrusion()).normal();
+    if (type=="LWPOLYLINE") n=CartesianFrame(readLWPolyline(raw).extrusion()).normal();
     else if (type=="LINE") {
         n=normal(edge);
-        if (boundaryType=="LWPOLYLINE") n=OCSFrame(readLWPolyline(boundary).extrusion()).normal();
+        if (boundaryType=="LWPOLYLINE") n=CartesianFrame(readLWPolyline(boundary).extrusion()).normal();
         else if (boundaryType=="LINE" && !edge.segments.empty()) {
             const auto& a=geometry.segments.front(); const auto& b=edge.segments.front();
             auto direction=[](const LWPolylineSegment3D& s) {
@@ -110,7 +110,7 @@ std::string Drafting::trim(const std::string& raw,const std::string& boundary,bo
             vertices.push_back(j==index ? first : j==index+1 ? last : original[j]);
             origins.push_back(static_cast<int>(j));
         }
-        result=updateLWPolyline(raw,LWPolylineEntity(vertices,false,model.constantWidth(),model.elevation(),model.extrusion()),origins);
+        result=updateLWPolyline(raw,DXFLWPolyline(vertices,false,model.constantWidth(),model.elevation(),model.extrusion()),origins);
     }
     parseEntity(result)->geometry();
     return result;

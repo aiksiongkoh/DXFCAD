@@ -44,6 +44,7 @@ class BatchTransformTests(unittest.TestCase):
                           ("rotate",dict(value=30,pivot=DXFCAD.Vector3D(1,2,0))),
                           ("scale",dict(value=2)),("mirror",dict(value=45))):
             plan=DXFCAD.prepare_batch_transform(objects+[objects[0]],op,**kwargs)
+            self.assertIs(type(plan), DXFCAD.BatchObjectTransformPlan)
             self.assertFalse(plan.copies)
             self.assertEqual(len(plan.objects),3)
             self.assertEqual([o.DXFData for o in objects],before)
@@ -95,12 +96,12 @@ class BatchTransformTests(unittest.TestCase):
         line.removeProperty("DXFContext")
         plan=DXFCAD.prepare_batch_transform([line],"copy")
         source=DXFCAD.drawing_document(self.root)
-        DXFCAD.set_drawing_source(self.root,DXFCAD.DXFDocument.parse(DXFCAD.set_layer(source.serialize(),"Extra",3,True)))
+        DXFCAD.set_drawing_source(self.root,DXFCAD.Drawing.parse(DXFCAD.set_layer(source.serialize(),"Extra",3,True)))
         with self.assertRaisesRegex(ValueError,"changed"): plan.apply()
         self.assertEqual(line.DXFData,original_line)
 
     def test_multiple_drawings_remain_separate(self):
-        other_root=DXFCAD.create_drawing(self.doc,DXFCAD.DXFDocument.empty(4))
+        other_root=DXFCAD.create_drawing(self.doc,DXFCAD.Drawing.empty(4))
         other=create_line(self.doc,DXFCAD.Vector3D(),DXFCAD.Vector3D(1,0,0),other_root)
         plan=DXFCAD.prepare_batch_transform([self.objects[0],other],"copy",offset=DXFCAD.Vector3D(1,0,0))
         expected=plan.drawing_bytes

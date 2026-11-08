@@ -110,7 +110,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     out = folder/"rotated.dxf"
     export_dxf(out,doc)
     assert "Retain opaque data" in out.read_text()
-    exported = {e.handle:e.raw for e in DXFCAD.DXFDocument.read(str(out)).entities}
+    exported = {e.handle:e.raw for e in DXFCAD.Drawing.read(str(out)).entities}
     for obj in selected:
         assert exported[DXFCAD.parse_entity(obj.DXFData).handle] == obj.DXFData
     saved = folder/"rotated.FCStd"

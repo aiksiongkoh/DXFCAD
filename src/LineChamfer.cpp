@@ -1,5 +1,6 @@
 #include <DXFCAD/Drafting.h>
 #include "LineCorner.h"
+#include "CornerUtilities.h"
 
 namespace DXFCAD {
 LineChamferResult Drafting::chamferLines(const std::string& first,const std::string& second,
@@ -14,7 +15,7 @@ LineChamferResult Drafting::chamferLines(const std::string& first,const std::str
     if (!std::isfinite(size(minus(a,b))) || size(minus(a,b))<=tolerance)
         throw std::invalid_argument("Chamfer connector would collapse");
     auto record=pair.connectorRecord("LINE");
-    const DXFRecord geometry{{{100,"AcDbLine"},{10,"0"},{20,"0"},{30,"0"},{11,"0"},{21,"0"},{31,"0"}}};
+    const GroupSequence geometry{{{100,"AcDbLine"},{10,"0"},{20,"0"},{30,"0"},{11,"0"},{21,"0"},{31,"0"}}};
     record.groups.insert(record.groups.end(),geometry.groups.begin(),geometry.groups.end());
     const auto connector=patchEntityFields(record,{{10,a.x},{20,a.y},{30,a.z},{11,b.x},{21,b.y},{31,b.z}});
     parseEntity(connector)->geometry();

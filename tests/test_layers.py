@@ -91,7 +91,7 @@ class LayerTests(unittest.TestCase):
         self.assertEqual(self.root.DXFSourceData,snapshot)
 
     def test_multiple_drawings_keep_layer_tables_and_groups_separate(self):
-        other_root=DXFCAD.create_drawing(self.doc,DXFCAD.DXFDocument.empty(4))
+        other_root=DXFCAD.create_drawing(self.doc,DXFCAD.Drawing.empty(4))
         other=create_line(self.doc,DXFCAD.Vector3D(),DXFCAD.Vector3D(2,0,0),other_root)
         with transaction(self.doc,"Assign two drawings"):
             DXFCAD.assign_layer([self.line,other],"SharedName")
@@ -146,7 +146,7 @@ class LayerTests(unittest.TestCase):
             doc=import_dxf(source)
             line=next(o for o in doc.Objects if hasattr(o,"DXFData"))
             root=drawing_root(line)
-            self.assertEqual(DXFCAD.drawing_document(root).serialize_bytes(),DXFCAD.DXFDocument.parse(drawing).serialize_bytes())
+            self.assertEqual(DXFCAD.drawing_document(root).serialize_bytes(),DXFCAD.Drawing.parse(drawing).serialize_bytes())
             self.assertIn(line,next(g for g in root.Group if g.DXFLayerName=="Undeclared").Group)
             with self.assertRaises(ValueError): DXFCAD.source_layer_group(root,"Missing")
 

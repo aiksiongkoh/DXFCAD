@@ -1,4 +1,4 @@
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <cmath>
 #include <iostream>
 #include <limits>

@@ -1,4 +1,4 @@
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -62,7 +62,7 @@ int main() {
         check(clone->raw().find(extra)!=std::string::npos);
         for (const auto& record : records) {
             const auto copy=parseEntity(parseEntity(record)->copied(delta));
-            const auto output=DXFDocument::parse(DXFDocument::empty(4).serialize({}, {}, {copy->raw(),copy->raw()}));
+            const auto output=Drawing::parse(Drawing::empty(4).serialize({}, {}, {copy->raw(),copy->raw()}));
             check(output.entities.size()==2 && output.entities[0]->handle()!=output.entities[1]->handle());
         }
         const auto offset=displacement({1,2,3},{4,-3,10});
@@ -71,8 +71,8 @@ int main() {
         rejects([] { displacement({-1e308,0,0},{1e308,0,0}); });
         rejects([] { parseEntity(createLine({1e308,0,0},{0,1,0}))->translated({1e308,0,0}); });
         rejects([] { parseEntity("0\nDIMENSION\n70\n0\n")->translated({1,2,3}); });
-        const auto doc=DXFDocument::parse("0\nSECTION\n2\nENTITIES\n"+records[1]+extra+"0\nENDSEC\n0\nEOF\n");
-        const auto exported=DXFDocument::parse(doc.serialize({{0,doc.entities[0]->translated(delta)}}));
+        const auto doc=Drawing::parse("0\nSECTION\n2\nENTITIES\n"+records[1]+extra+"0\nENDSEC\n0\nEOF\n");
+        const auto exported=Drawing::parse(doc.serialize({{0,doc.entities[0]->translated(delta)}}));
         shifted(doc.entities[0]->geometry().circles[0].center,exported.entities[0]->geometry().circles[0].center,delta);
         std::cout << "Native entity Move, OCS/WCS, metadata preservation and validation passed.\n";
     } catch (const std::exception& e) { std::cerr<<e.what()<<'\n'; return 1; }

@@ -14,7 +14,7 @@ import DXFCAD
 assert Path(DXFCAD.__file__).parent == module_directory
 from dxfcad_import import import_dxf
 from dxfcad_edit import apply_entity_update, create_line, _create_entity
-from dxfcad_objects import DXFObjectProxy
+from dxfcad_objects import EntityProxy
 
 DRAWING = ("0\nSECTION\n2\nENTITIES\n0\nLINE\n5\nAB\n330\nFF\n10\n0\n20\n0\n11\n10\n21\n0\n"
            "1001\nTEST\n1000\nretain me\n0\nLINE\n5\nBC\n10\n5\n20\n-5\n11\n5\n21\n5\n"
@@ -89,12 +89,12 @@ class TrimPlanTests(unittest.TestCase):
             obj.removeProperty("DXFContext")
 
     def test_other_drawing_and_detached_boundaries_are_explicit_dependencies(self):
-        root = DXFCAD.create_drawing(self.doc, DXFCAD.DXFDocument.empty(4))
+        root = DXFCAD.create_drawing(self.doc, DXFCAD.Drawing.empty(4))
         boundary = create_line(self.doc, DXFCAD.Vector3D(5, -5, 0), DXFCAD.Vector3D(5, 5, 0), root)
         for detached in (False, True):
             if detached:
                 boundary = DXFCAD.create_feature(self.doc, DXFCAD.parse_entity(boundary.DXFData), "")
-                if boundary.TypeId == "Part::FeaturePython": DXFObjectProxy(boundary)
+                if boundary.TypeId == "Part::FeaturePython": EntityProxy(boundary)
                 self.doc.recompute()
             plan = DXFCAD.prepare_trim(self.target, boundary)
             original = self.target.DXFData

@@ -1,5 +1,6 @@
 #include <DXFCAD/Drafting.h>
 #include "LineCorner.h"
+#include "CornerUtilities.h"
 
 namespace DXFCAD {
 LineFilletResult Drafting::filletLines(const std::string& first,const std::string& second,
@@ -14,14 +15,14 @@ LineFilletResult Drafting::filletLines(const std::string& first,const std::strin
     const auto tangentA=plus(corner,times(u,distance)), tangentB=plus(corner,times(v,distance));
     const auto center=plus(corner,times(unit(plus(u,v)),std::hypot(distance,radius)));
     const auto arcNormal=times(unit(cross3(u,v)),-1);
-    const OCSFrame arcFrame({arcNormal.x,arcNormal.y,arcNormal.z});
+    const CartesianFrame arcFrame({arcNormal.x,arcNormal.y,arcNormal.z});
     const auto centerOCS=arcFrame.fromWorld(center);
     const auto startOCS=arcFrame.fromWorld(tangentA), endOCS=arcFrame.fromWorld(tangentB);
     auto degrees=[&](Vector3D p) { return Detail::wrap(std::atan2(p.y-centerOCS.y,p.x-centerOCS.x))*180/Detail::pi; };
     // A new entity receives visual properties from the first line, but no
     // identity, ownership, application payload or LINE-specific geometry.
     auto record=pair.connectorRecord("ARC");
-    const DXFRecord geometry{{{100,"AcDbCircle"},{10,"0"},{20,"0"},{30,"0"},{40,"1"},
+    const GroupSequence geometry{{{100,"AcDbCircle"},{10,"0"},{20,"0"},{30,"0"},{40,"1"},
                               {210,"0"},{220,"0"},{230,"1"},{100,"AcDbArc"},{50,"0"},{51,"90"}}};
     record.groups.insert(record.groups.end(),geometry.groups.begin(),geometry.groups.end());
     const auto arc=patchEntityFields(record,{{10,centerOCS.x},{20,centerOCS.y},{30,centerOCS.z},{40,radius},

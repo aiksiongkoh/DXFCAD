@@ -86,19 +86,19 @@ def create_line(document, start, end, root=None):
 
 def _create_entity(document, raw, root, kind, *, font=""):
     import DXFCAD
-    from dxfcad_objects import DXFObjectProxy, DXFViewProvider
+    from dxfcad_objects import EntityProxy, EntityViewProvider
 
     group_names = {obj.Name for obj in document.Objects if "Group" in obj.PropertiesList}
     with transaction(document, "Create DXF "+kind):
         obj = DXFCAD.create_entity(document, raw, root=root, font_file=font)
         if obj.TypeId == "Part::FeaturePython":
-            DXFObjectProxy(obj)
+            EntityProxy(obj)
         if FreeCAD.GuiUp:
             root = obj.DXFSourceRoot
             source = DXFCAD.drawing_document(root)
             entity = DXFCAD.parse_entity(obj.DXFData, getattr(obj, "DXFContext", ""))
             layer = source.layers.get(entity.layer, source.layers["0"])
-            DXFViewProvider(obj.ViewObject, entity.color(layer))
+            EntityViewProvider(obj.ViewObject, entity.color(layer))
             obj.ViewObject.Visibility = entity.visible
             for group in root.Group:
                 if group.Name not in group_names and hasattr(group, "DXFLayerName"):
@@ -117,7 +117,7 @@ def prepare_move(objects, offset):
 def apply_batch_plan(plan, label):
     """Apply domain records and initialize copied objects' presentation."""
     import DXFCAD
-    from dxfcad_objects import DXFObjectProxy, DXFViewProvider
+    from dxfcad_objects import EntityProxy, EntityViewProvider
     widths = [getattr(obj, "ShowWidths", None) for obj in plan.objects]
     group_names = {g.Name for obj in plan.objects
                    if getattr(obj, "DXFSourceRoot", None) is not None
@@ -127,14 +127,14 @@ def apply_batch_plan(plan, label):
         if plan.copies:
             for obj, show_widths in zip(result, widths):
                 if obj.TypeId == "Part::FeaturePython":
-                    DXFObjectProxy(obj)
+                    EntityProxy(obj)
                 if show_widths is not None and "ShowWidths" in obj.PropertiesList:
                     obj.ShowWidths = show_widths
                 if FreeCAD.GuiUp:
                     source = DXFCAD.drawing_document(obj.DXFSourceRoot)
                     entity = DXFCAD.parse_entity(obj.DXFData, getattr(obj, "DXFContext", ""))
                     layer = source.layers.get(entity.layer, source.layers["0"])
-                    DXFViewProvider(obj.ViewObject, entity.color(layer))
+                    EntityViewProvider(obj.ViewObject, entity.color(layer))
                     obj.ViewObject.Visibility = entity.visible
                     for group in obj.DXFSourceRoot.Group:
                         if group.Name not in group_names and hasattr(group, "DXFLayerName"):
@@ -184,7 +184,7 @@ def apply_entity_update(plan, label):
 def apply_contour_plan(plan, label):
     """Present and commit a validated C++ contour plan in one undo step."""
     import DXFCAD
-    from dxfcad_objects import DXFObjectProxy, DXFViewProvider
+    from dxfcad_objects import EntityProxy, EntityViewProvider
     show_widths = getattr(plan.template_object, "ShowWidths", None)
     source = DXFCAD.drawing_document(plan.root)
     existing_groups = {g.Name for g in plan.root.Group}
@@ -192,13 +192,13 @@ def apply_contour_plan(plan, label):
         result = plan.apply()
         for obj in plan.created_objects:
             if obj.TypeId == "Part::FeaturePython":
-                DXFObjectProxy(obj)
+                EntityProxy(obj)
             if show_widths is not None and "ShowWidths" in obj.PropertiesList:
                 obj.ShowWidths = show_widths
             if FreeCAD.GuiUp:
                 entity = DXFCAD.parse_entity(obj.DXFData)
                 layer = source.layers.get(entity.layer, source.layers["0"])
-                DXFViewProvider(obj.ViewObject, entity.color(layer))
+                EntityViewProvider(obj.ViewObject, entity.color(layer))
                 obj.ViewObject.Visibility = entity.visible
         if FreeCAD.GuiUp:
             for group in plan.root.Group:
@@ -218,17 +218,17 @@ def replace_contours(objects, records, label, preserve_first=True):
 def apply_corner_plan(plan, label):
     """Commit the C++ corner plan and initialize connector presentation."""
     import DXFCAD
-    from dxfcad_objects import DXFObjectProxy, DXFViewProvider
+    from dxfcad_objects import EntityProxy, EntityViewProvider
     source = DXFCAD.drawing_document(plan.root)
     groups = {g.Name for g in plan.root.Group}
     with transaction(plan.document, label):
         connector = plan.apply()
         if connector.TypeId == "Part::FeaturePython":
-            DXFObjectProxy(connector)
+            EntityProxy(connector)
         if FreeCAD.GuiUp:
             entity = DXFCAD.parse_entity(connector.DXFData)
             layer = source.layers.get(entity.layer, source.layers["0"])
-            DXFViewProvider(connector.ViewObject, entity.color(layer))
+            EntityViewProvider(connector.ViewObject, entity.color(layer))
             connector.ViewObject.Visibility = entity.visible
             for group in plan.root.Group:
                 if group.Name not in groups and hasattr(group, "DXFLayerName"):

@@ -1,5 +1,5 @@
-#include <DXFCAD/DXFDocument.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/Drawing.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -36,8 +36,8 @@ int main() {
         same(cw.arc->normal,{0,0,-1}); same(cw.arc->midpoint,{0,-5,2}); near(cw.arc->sweep,pi);
         const auto major=parseEntity(createArcThroughPoints({5,0,0},{-5,0,0},{0,5,0}))->geometry().segments[0];
         near(major.arc->sweep,3*pi/2); same(major.arc->normal,{0,0,-1});
-        for (auto normal : {ExtrusionDirection{1,2,3},ExtrusionDirection{0,0,-2}}) {
-            const OCSFrame frame(normal);
+        for (auto normal : {Vector3D{1,2,3},Vector3D{0,0,-2}}) {
+            const CartesianFrame frame(normal);
             const auto r=parseEntity(createArcThroughPoints(frame.toWorld({5,0},7),frame.toWorld({0,5},7),frame.toWorld({-5,0},7)));
             const auto edge=r->geometry().segments[0];
             same(edge.arc->center,frame.toWorld({0,0},7)); near(edge.arc->radius,5);
@@ -64,7 +64,7 @@ int main() {
         rejects([&] { createArcThroughPoints({0,0,0},{1,1,1},{2,2,2}); });
         rejects([&] { createArcThroughPoints({0,0,0},{1,1e-14,0},{2,0,0}); });
         rejects([&] { createArcThroughPoints({0,0,0},{NAN,1,0},{2,0,0}); });
-        const auto restored=DXFDocument::parse(DXFDocument::empty().serialize({}, {}, {raw,three,createArc({0,0,0},2,0,270,true)}));
+        const auto restored=Drawing::parse(Drawing::empty().serialize({}, {}, {raw,three,createArc({0,0,0},2,0,270,true)}));
         check(restored.entities.size()==3 && restored.entities[0]->handle()!=restored.entities[1]->handle(),"ARC export handles not allocated");
         same(restored.entities[1]->geometry().segments[0].arc->midpoint,{0,5,2});
         std::cout<<"Native ARC creation: numeric/three-point, direction, major arcs, planes, validation and export passed.\n";

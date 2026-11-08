@@ -21,9 +21,9 @@ def checkpoint(*args):
 FreeCADGui.activateWorkbench("DXFCADWorkbench")
 checkpoint("Viewport stage: initialized")
 doc = FreeCAD.newDocument("VertexPicking")
-base = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0,0.25,0.2,0.4,True),
+base = DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(0,0,0.25,0.2,0.4,True),
                          DXFCAD.LWPolylineVertex(10,0), DXFCAD.LWPolylineVertex(10,10)],
-                        elevation=4, extrusion=DXFCAD.ExtrusionDirection(1,2,3))
+                        elevation=4, extrusion=DXFCAD.Vector3D(1,2,3))
 obj = create_polyline(doc, base)
 obj.ShowWidths = False
 # Native metadata must survive viewport editing.
@@ -137,7 +137,7 @@ assert obj.DXFData == edited
 with tempfile.TemporaryDirectory(dir=profile) as folder:
     output = Path(folder) / "picked.dxf"
     export_dxf(output,doc)
-    parsed = DXFCAD.DXFDocument.read(str(output))
+    parsed = DXFCAD.Drawing.read(str(output))
     assert DXFCAD.read_lwpolyline(parsed.entities[0].raw).vertices[0].x == 10
 
 # Canceling the panel and switching documents both detach events and overlays.

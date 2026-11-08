@@ -3,7 +3,7 @@
 #include <stdexcept>
 
 namespace DXFCAD {
-BatchTransformPlan::BatchTransformPlan(const std::vector<BatchTransformInput>& inputs,
+BatchTransformChangeSet::BatchTransformChangeSet(const std::vector<BatchTransformInput>& inputs,
     const std::string& operation,Vector3D offset,double value,Vector3D pivot,bool allowIdentity)
 {
     if (inputs.empty()) throw std::invalid_argument("Select DXFCAD objects to transform");

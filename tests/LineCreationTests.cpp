@@ -1,4 +1,4 @@
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -19,9 +19,9 @@ int main() {
         check(entity->type() == "LINE" && entity->handle().empty() && entity->layer() == "0");
         const auto segment = entity->geometry().segments.at(0);
         check(segment.start.x == a.x && segment.start.z == 3 && segment.end.y == 6);
-        const auto drawing = DXFCAD::DXFDocument::empty(4);
+        const auto drawing = DXFCAD::Drawing::empty(4);
         const auto output = drawing.serialize({}, {}, {raw,raw});
-        const auto restored = DXFCAD::DXFDocument::parse(output);
+        const auto restored = DXFCAD::Drawing::parse(output);
         check(restored.entities.size() == 2 && restored.insertionUnits == 4);
         check(!restored.entities[0]->handle().empty() && restored.entities[0]->handle() != restored.entities[1]->handle());
         rejects([&] { DXFCAD::createLine(a,a); });

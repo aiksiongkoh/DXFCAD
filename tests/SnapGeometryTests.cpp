@@ -1,5 +1,5 @@
 #include <DXFCAD/SnapGeometry.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -8,10 +8,10 @@ using namespace DXFCAD;
 namespace {
 void check(bool ok,const char* message) { if (!ok) throw std::runtime_error(message); }
 void near(double a,double b) { check(std::abs(a-b)<1e-7,"Unexpected snap coordinate"); }
-std::vector<DXFSnapPoint> hits(const std::string& a,const std::string& b) {
+std::vector<SnapPoint> hits(const std::string& a,const std::string& b) {
     return SnapGeometry(*parseEntity(a)).intersections(SnapGeometry(*parseEntity(b)));
 }
-bool contains(const std::vector<DXFSnapPoint>& points,Vector3D p) {
+bool contains(const std::vector<SnapPoint>& points,Vector3D p) {
     for (const auto& hit : points) if (std::hypot(hit.position.x-p.x,hit.position.y-p.y,hit.position.z-p.z)<1e-7) return true;
     return false;
 }
@@ -32,13 +32,13 @@ int main() {
         const auto arcPoints=parseEntity(arc)->snapPoints();
         check(arcPoints.back().kind=="midpoint","Missing ARC midpoint");
         near(arcPoints.back().position.x,-5/std::sqrt(2.0)); near(arcPoints.back().position.y,5/std::sqrt(2.0));
-        const auto poly=createLWPolyline(LWPolylineEntity({{-5,0,1},{5,0},{5,5}},false,3,2));
+        const auto poly=createLWPolyline(DXFLWPolyline({{-5,0,1},{5,0},{5,5}},false,3,2));
         const auto pp=parseEntity(poly)->snapPoints();
         check(pp.size()==5 && pp[3].kind=="midpoint" && pp[4].kind=="midpoint","Polyline midpoint topology wrong");
         near(pp[3].position.y,-5); near(pp[3].position.z,2); near(pp[4].position.y,2.5);
-        const auto cw=createLWPolyline(LWPolylineEntity({{-5,0,-1},{5,0}}));
+        const auto cw=createLWPolyline(DXFLWPolyline({{-5,0,-1},{5,0}}));
         near(parseEntity(cw)->snapPoints().back().position.y,5);
-        const auto closed=createLWPolyline(LWPolylineEntity({{0,0},{4,0},{4,4}},true));
+        const auto closed=createLWPolyline(DXFLWPolyline({{0,0},{4,0},{4,4}},true));
         const auto cp=parseEntity(closed)->snapPoints();
         check(cp.size()==6,"Missing closing-edge midpoint"); near(cp.back().position.x,2); near(cp.back().position.y,2);
         const auto crossing=hits(line,vertical);
@@ -61,22 +61,22 @@ int main() {
         check(hits(createLine({-10,-3,0},{10,-3,0}),quarter).empty(),"Arc extension offered");
         const auto aq=hits(quarter,circle2);
         check(aq.size()==1 && contains(aq,{3,4,0}),"Arc/circle finite sweep wrong");
-        const auto below=createLWPolyline(LWPolylineEntity({{-5,0,1},{5,0}}));
-        const auto above=createLWPolyline(LWPolylineEntity({{-5,0,-1},{5,0}}));
+        const auto below=createLWPolyline(DXFLWPolyline({{-5,0,1},{5,0}}));
+        const auto above=createLWPolyline(DXFLWPolyline({{-5,0,-1},{5,0}}));
         check(contains(hits(below,createLine({0,-10,0},{0,10,0})),{0,-5,0}),"Bulged segment intersection wrong");
         check(contains(hits(above,createLine({0,-10,0},{0,10,0})),{0,5,0}),"Clockwise bulge intersection wrong");
         check(hits(below,above).empty(),"Coincident circular supports should not produce ambiguous hits");
-        const auto polyBoundary=createLWPolyline(LWPolylineEntity({{2,-5},{2,0},{2,5}}));
+        const auto polyBoundary=createLWPolyline(DXFLWPolyline({{2,-5},{2,0},{2,5}}));
         check(hits(line,polyBoundary).size()==1,"Shared polyline vertex duplicated");
         const auto pointsBefore=entity->raw();
         const SnapGeometry shifted(*entity,{0,3,0});
         const auto translated=shifted.intersections(SnapGeometry(*parseEntity(vertical)));
         check(contains(translated,{2,3,0}) && entity->raw()==pointsBefore,"Placement modified native data");
-        const OCSFrame frame({1,2,3});
+        const CartesianFrame frame({1,2,3});
         const SnapGeometry tiltedLine(*entity,frame.toWorld({0,0},7),frame.xAxis(),frame.yAxis(),frame.normal());
         const SnapGeometry tiltedVertical(*parseEntity(vertical),frame.toWorld({0,0},7),frame.xAxis(),frame.yAxis(),frame.normal());
         check(contains(tiltedLine.intersections(tiltedVertical),frame.toWorld({2,0},7)),"Tilted placement intersection wrong");
-        const auto tiltedPoly=createLWPolyline(LWPolylineEntity({{-5,0,1},{5,0}},false,0,7,{1,2,3}));
+        const auto tiltedPoly=createLWPolyline(DXFLWPolyline({{-5,0,1},{5,0}},false,0,7,{1,2,3}));
         const auto tiltCut=createLine(frame.toWorld({0,-10},7),frame.toWorld({0,10},7));
         check(contains(hits(tiltedPoly,tiltCut),frame.toWorld({0,-5},7)),"Tilted OCS arc intersection wrong");
         const auto tiltedMidpoint=parseEntity(tiltedPoly)->snapPoints().back().position;

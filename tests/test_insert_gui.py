@@ -75,7 +75,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert clone.Shape.isValid() and clone.DXFContext==block
     exported=Path(temp)/"result.dxf"
     export_dxf(exported,doc)
-    result=DXFCAD.DXFDocument.read(str(exported))
+    result=DXFCAD.Drawing.read(str(exported))
     assert len(result.entities)==2 and not result.warnings
     assert all(e.type=="INSERT" for e in result.entities)
     assert block in result.serialize()

@@ -53,8 +53,8 @@ SnapGeometry::SnapGeometry(const DXFEntity& entity,Vector3D origin,Vector3D x,Ve
     for (auto& p : geometry_.bounds) p=place(p);
 }
 
-std::vector<DXFSnapPoint> SnapGeometry::midpoints(const EntityGeometry& geometry) {
-    std::vector<DXFSnapPoint> result;
+std::vector<SnapPoint> SnapGeometry::midpoints(const EntityGeometry& geometry) {
+    std::vector<SnapPoint> result;
     for (const auto& s : geometry.segments) {
         if (!s.arc && length3(difference(s.end,s.start))==0) continue;
         const auto point=s.arc ? s.arc->midpoint : Vector3D{s.start.x/2+s.end.x/2,s.start.y/2+s.end.y/2,s.start.z/2+s.end.z/2};
@@ -84,8 +84,8 @@ std::vector<Vector3D> SnapGeometry::boundPoints() const {
     return result;
 }
 
-std::vector<DXFSnapPoint> SnapGeometry::intersections(const SnapGeometry& other) const {
-    std::vector<DXFSnapPoint> result;
+std::vector<SnapPoint> SnapGeometry::intersections(const SnapGeometry& other) const {
+    std::vector<SnapPoint> result;
     const auto a=pieces(geometry_), b=pieces(other.geometry_);
     for (const auto& first : a) for (const auto& second : b) {
         Vector3D n;

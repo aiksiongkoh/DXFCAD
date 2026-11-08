@@ -65,7 +65,7 @@ class DimensionTests(unittest.TestCase):
     def test_export_rejects_edits_and_retains_blocks(self):
         output = Path(self.folder.name)/"output.dxf"
         export_dxf(output, self.doc)
-        self.assertEqual(output.read_bytes(), DXFCAD.DXFDocument.parse(DRAWING).serialize_bytes())
+        self.assertEqual(output.read_bytes(), DXFCAD.Drawing.parse(DRAWING).serialize_bytes())
         original = output.read_bytes()
         self.obj.DXFData = DIM.replace("20\n2\n", "20\n3\n")
         with self.assertRaises(ValueError):
@@ -108,7 +108,7 @@ FreeCAD.closeDocument(doc.Name)
                                  str(Path(__file__).resolve().parents[1]),str(saved),str(output)],
                                 capture_output=True,text=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-        self.assertEqual(output.read_bytes(),DXFCAD.DXFDocument.parse(DRAWING).serialize_bytes())
+        self.assertEqual(output.read_bytes(),DXFCAD.Drawing.parse(DRAWING).serialize_bytes())
 
 
 if __name__ == "__main__":

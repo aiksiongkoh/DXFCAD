@@ -1,9 +1,59 @@
 """UI commands for the standalone DXFCAD workbench."""
 
+from abc import ABC, abstractmethod
+
 import FreeCAD
 
 
-class CheckWorkbenchCommand:
+class DXFCADCommand(ABC):
+    """A workbench action receiving FreeCAD's command callback messages.
+
+    Concrete commands describe their resources and start their own UI workflow.
+    Commands are available without a document unless they specialize IsActive.
+    Activation, error presentation and transactions remain with each workflow.
+    """
+
+    @abstractmethod
+    def GetResources(self):
+        """Return the command's FreeCAD menu, tooltip and optional icon resources."""
+
+    def IsActive(self):
+        return True
+
+    @abstractmethod
+    def Activated(self):
+        """Start the command's UI workflow."""
+
+
+class ActiveDocumentCommand(DXFCADCommand):
+    """A command available when FreeCAD has an active document."""
+
+    def IsActive(self):
+        return FreeCAD.ActiveDocument is not None
+
+
+class EntityCreationCommand(DXFCADCommand):
+    """A command that opens a workflow to create native DXF entities.
+
+    Creation is available without an open document; the workflow resolves or
+    creates its destination drawing.
+    """
+
+
+class SelectedDXFCommand(DXFCADCommand):
+    """A command acting on selected DXF objects.
+
+    The default accepts a nonempty selection whose objects all have DXFData.
+    Entity-specific commands specialize availability for their supported types.
+    """
+
+    def IsActive(self):
+        import FreeCADGui
+        selected = FreeCADGui.Selection.getSelection()
+        return bool(selected) and all("DXFData" in obj.PropertiesList for obj in selected)
+
+
+class CheckWorkbenchCommand(DXFCADCommand):
     """Check UI registration without requiring or changing a document."""
 
     def GetResources(self):
@@ -12,22 +62,16 @@ class CheckWorkbenchCommand:
             "ToolTip": "Print a workbench loading confirmation in Report view",
         }
 
-    def IsActive(self):
-        return True
-
     def Activated(self):
         FreeCAD.Console.PrintMessage("DXFCAD workbench loaded successfully.\n")
 
 
-class ImportDXFCommand:
+class ImportDXFCommand(DXFCADCommand):
     """Choose a drawing and show its native DXF objects in a new document."""
 
     def GetResources(self):
-        return {"MenuText": "Import Native DXF...",
-                "ToolTip": "Display native DXF entities using DXFCAD"}
-
-    def IsActive(self):
-        return True
+        return {"MenuText": "Import DXF/DWG...",
+                "ToolTip": "Import DXF or convert DWG into native DXFCAD entities"}
 
     def Activated(self):
         import FreeCADGui
@@ -35,7 +79,8 @@ class ImportDXFCommand:
         from dxfcad_import import import_dxf
 
         filename, _ = QtWidgets.QFileDialog.getOpenFileName(
-            FreeCADGui.getMainWindow(), "Import Native DXF", "", "DXF drawings (*.dxf)")
+            FreeCADGui.getMainWindow(), "Import DXF/DWG", "",
+            "CAD drawings (*.dxf *.dwg);;DXF drawings (*.dxf);;DWG drawings (*.dwg);;All files (*)")
         if not filename:
             return
         try:
@@ -47,12 +92,9 @@ class ImportDXFCommand:
             QtWidgets.QMessageBox.critical(FreeCADGui.getMainWindow(), "DXFCAD import", str(error))
 
 
-class DrawLineCommand:
+class DrawLineCommand(EntityCreationCommand):
     def GetResources(self):
         return {"MenuText": "Draw Lines...", "ToolTip": "Draw connected native DXF lines with snapping and undo"}
-
-    def IsActive(self):
-        return True
 
     def Activated(self):
         import FreeCADGui
@@ -68,12 +110,9 @@ class DrawLineCommand:
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class DrawCircleCommand:
+class DrawCircleCommand(EntityCreationCommand):
     def GetResources(self):
         return {"MenuText": "Draw Circles...", "ToolTip": "Draw native DXF circles with snapping and undo"}
-
-    def IsActive(self):
-        return True
 
     def Activated(self):
         import FreeCADGui
@@ -89,7 +128,7 @@ class DrawCircleCommand:
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class DrawArcCommand(DrawCircleCommand):
+class DrawArcCommand(EntityCreationCommand):
     def GetResources(self):
         return {"MenuText":"Draw Arcs...","ToolTip":"Draw native DXF arcs through three snapped points or from center and angles"}
 
@@ -107,14 +146,9 @@ class DrawArcCommand(DrawCircleCommand):
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class MoveCommand:
+class MoveCommand(SelectedDXFCommand):
     def GetResources(self):
         return {"MenuText": "Move Objects...", "ToolTip": "Move selected native DXF objects with snapping and undo"}
-
-    def IsActive(self):
-        import FreeCADGui
-        selected = FreeCADGui.Selection.getSelection()
-        return bool(selected) and all("DXFData" in obj.PropertiesList for obj in selected)
 
     def Activated(self):
         from dxfcad_move_ui import show_move_tool
@@ -124,7 +158,7 @@ class MoveCommand:
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class CopyCommand(MoveCommand):
+class CopyCommand(SelectedDXFCommand):
     def GetResources(self):
         return {"MenuText": "Copy Objects...", "ToolTip": "Copy selected native DXF objects with snapping and undo"}
 
@@ -136,7 +170,7 @@ class CopyCommand(MoveCommand):
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class RotateCommand(MoveCommand):
+class RotateCommand(SelectedDXFCommand):
     def GetResources(self):
         return {"MenuText": "Rotate Objects...", "ToolTip": "Rotate native DXF objects around a center"}
 
@@ -148,7 +182,7 @@ class RotateCommand(MoveCommand):
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class ScaleCommand(MoveCommand):
+class ScaleCommand(SelectedDXFCommand):
     def GetResources(self):
         return {"MenuText": "Scale Objects...", "ToolTip": "Uniformly scale native DXF objects about a center"}
 
@@ -160,7 +194,7 @@ class ScaleCommand(MoveCommand):
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class MirrorCommand(MoveCommand):
+class MirrorCommand(SelectedDXFCommand):
     def GetResources(self):
         return {"MenuText": "Mirror Objects...", "ToolTip": "Reflect native DXF objects across a line"}
 
@@ -172,7 +206,7 @@ class MirrorCommand(MoveCommand):
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class RectangleCommand(DrawLineCommand):
+class RectangleCommand(EntityCreationCommand):
     def GetResources(self):
         return {"MenuText": "Draw Rectangles...", "ToolTip": "Create a closed native rectangle from two corners"}
 
@@ -190,7 +224,7 @@ class RectangleCommand(DrawLineCommand):
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class DraftingCommand(MoveCommand):
+class DraftingCommand(SelectedDXFCommand):
     panel_name = "TrimTaskPanel"
     menu_text = "Trim Objects..."
     tooltip = "Trim a line, arc or open polyline endpoint to a finite boundary"
@@ -212,7 +246,7 @@ class ExtendCommand(DraftingCommand):
     tooltip = "Extend a line, arc or open polyline endpoint to a finite boundary"
 
 
-class ContourCommand(MoveCommand):
+class ContourCommand(SelectedDXFCommand):
     def __init__(self,operation):
         self.operation=operation
 
@@ -259,7 +293,7 @@ class ChamferLinesCommand(DraftingCommand):
     tooltip = "Trim or extend two native lines and join them with a bevel"
 
 
-class CreateTextCommand(DrawLineCommand):
+class CreateTextCommand(EntityCreationCommand):
     def GetResources(self):
         return {"MenuText": "Create Text...", "ToolTip": "Create native TEXT or MTEXT"}
 
@@ -277,7 +311,7 @@ class CreateTextCommand(DrawLineCommand):
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class EditTextCommand(MoveCommand):
+class EditTextCommand(SelectedDXFCommand):
     def GetResources(self):
         return {"MenuText": "Edit Text...", "ToolTip": "Edit native text content, height, and multiline width"}
 
@@ -301,12 +335,9 @@ class PropertiesCommand(DraftingCommand):
     tooltip = "Assign layers, ACI colors, visibility and layer settings"
 
 
-class CreatePolylineCommand:
+class CreatePolylineCommand(EntityCreationCommand):
     def GetResources(self):
         return {"MenuText": "Create LWPolyline...", "ToolTip": "Create a native DXF polyline"}
-
-    def IsActive(self):
-        return True
 
     def Activated(self):
         import FreeCADGui
@@ -321,7 +352,7 @@ class CreatePolylineCommand:
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class EditPolylineCommand:
+class EditPolylineCommand(SelectedDXFCommand):
     def GetResources(self):
         return {"MenuText": "Edit LWPolyline...", "ToolTip": "Edit vertices, bulges, widths, and transform native coordinates"}
 
@@ -340,12 +371,23 @@ class EditPolylineCommand:
             FreeCAD.Console.PrintError(f"DXFCAD: {error}\n")
 
 
-class SavedViewsCommand:
+class PaperLayoutsCommand(ActiveDocumentCommand):
+    def GetResources(self):
+        return {"MenuText": "Paper Layouts...", "ToolTip": "Preview paper-space geometry and supported layout viewports"}
+
+    def Activated(self):
+        from PySide import QtWidgets
+        import FreeCADGui
+        from dxfcad_paper_ui import show_paper_layouts
+        try:
+            show_paper_layouts()
+        except Exception as error:
+            QtWidgets.QMessageBox.information(FreeCADGui.getMainWindow(), "Paper Layouts", str(error))
+
+
+class SavedViewsCommand(ActiveDocumentCommand):
     def GetResources(self):
         return {"MenuText": "Saved DXF Views...", "ToolTip": "Inspect saved layout viewports and open supported model views"}
-
-    def IsActive(self):
-        return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
         import FreeCADGui
@@ -357,12 +399,9 @@ class SavedViewsCommand:
             QtWidgets.QMessageBox.information(FreeCADGui.getMainWindow(), "Saved DXF Views", str(error))
 
 
-class ExportDXFCommand:
+class ExportDXFCommand(ActiveDocumentCommand):
     def GetResources(self):
         return {"MenuText": "Export Native DXF...", "ToolTip": "Export a whole drawing, preserving unedited source records"}
-
-    def IsActive(self):
-        return FreeCAD.ActiveDocument is not None
 
     def Activated(self):
         import FreeCADGui

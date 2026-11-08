@@ -115,14 +115,14 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert original == {name:doc.getObject(name).DXFData for name in original}
     out = folder/"circles-out.dxf"
     export_dxf(out,doc)
-    restored = DXFCAD.DXFDocument.read(str(out))
+    restored = DXFCAD.Drawing.read(str(out))
     assert len(restored.entities) == 5
     handles = [e.handle for e in restored.entities]
     assert len(set(handles)) == len(handles)
     assert "Retain opaque data" in out.read_text()
     # A clean independent-reader fixture excludes the deliberately opaque SPLINE.
     clean = folder/"circle-only.dxf"
-    DXFCAD.DXFDocument.empty(4).write(str(clean),added=[raw])
+    DXFCAD.Drawing.empty(4).write(str(clean),added=[raw])
     import Import
     independent = FreeCAD.newDocument("IndependentCircle")
     Import.readDXF(str(clean),independent.Name,False)

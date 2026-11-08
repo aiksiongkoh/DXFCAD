@@ -20,7 +20,7 @@ targets=[DXFCAD.create_line(V(5,0,0),V(7,0,0)),DXFCAD.create_line(V(0,5,0),V(2,5
 with tempfile.TemporaryDirectory(dir=profile) as temp:
     folder=Path(temp)
     source=folder/"arc-source.dxf"
-    DXFCAD.DXFDocument.empty(4).write(str(source),added=targets)
+    DXFCAD.Drawing.empty(4).write(str(source),added=targets)
     doc=import_dxf(source)
     original={o.Name:o.DXFData for o in doc.Objects if "DXFData" in o.PropertiesList}
     view=FreeCADGui.activeDocument().activeView()
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert original=={name:doc.getObject(name).DXFData for name in original}
     output=folder/"arcs.dxf"
     export_dxf(output,doc)
-    parsed=DXFCAD.DXFDocument.read(str(output))
+    parsed=DXFCAD.Drawing.read(str(output))
     assert len(parsed.entities)==11 and sum(e.type=="ARC" for e in parsed.entities)==5
     assert len({e.handle for e in parsed.entities})==11
     import Import
@@ -154,7 +154,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     doc=FreeCAD.openDocument(str(saved))
     assert all(doc.getObject(name).DXFData==raw and doc.getObject(name).Shape.isValid() for name,raw in expected.items())
     export_dxf(folder/"restored.dxf",doc)
-    assert len(DXFCAD.DXFDocument.read(str(folder/"restored.dxf")).entities)==11
+    assert len(DXFCAD.Drawing.read(str(folder/"restored.dxf")).entities)==11
 
     # Document switching/closure must release both pending points, observers,
     # the borrowed scene reference and the Coin event callback.

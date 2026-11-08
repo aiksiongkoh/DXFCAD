@@ -1,8 +1,8 @@
 #include <DXFCAD/EntityConversion.h>
-#include <DXFCAD/LegacyPolyline.h>
+#include <DXFCAD/DXFPolyline.h>
 #include <DXFCAD/ParametricCurves.h>
 #include <DXFCAD/Drafting.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -15,7 +15,7 @@ double norm(Vector3D a) { return std::hypot(a.x,a.y,a.z); }
 double dot(Vector3D a,Vector3D b) { return a.x*b.x+a.y*b.y+a.z*b.z; }
 std::string attributes(const std::string& generated,const DXFEntity& source)
 {
-    const auto compound=dynamic_cast<const LegacyPolyline*>(&source);
+    const auto compound=dynamic_cast<const DXFPolyline*>(&source);
     const auto& original=compound ? compound->headerRecord() : source.record();
     const auto f=nativeEntityFields(original);
     std::map<int,std::string> properties{{8,source.layer()}};
@@ -34,12 +34,12 @@ std::string attributes(const std::string& generated,const DXFEntity& source)
 std::string arc(const LWPolylineSegment3D& segment)
 {
     const auto& a=*segment.arc;
-    const OCSFrame frame({a.normal.x,a.normal.y,a.normal.z});
+    const CartesianFrame frame({a.normal.x,a.normal.y,a.normal.z});
     const auto c=frame.fromWorld(a.center);
     auto start=frame.fromWorld(segment.start),end=frame.fromWorld(segment.end);
     if (a.sweep<0) std::swap(start,end);
     const auto degrees=[&](Vector3D p) { auto result=std::atan2(p.y-c.y,p.x-c.x)*180/pi; return result<0 ? result+360 : result; };
-    DXFRecord record{{{0,"ARC"},{100,"AcDbEntity"},{8,"0"},{100,"AcDbCircle"},
+    GroupSequence record{{{0,"ARC"},{100,"AcDbEntity"},{8,"0"},{100,"AcDbCircle"},
         {10,"0"},{20,"0"},{30,"0"},{40,"1"},{210,"0"},{220,"0"},{230,"1"},
         {100,"AcDbArc"},{50,"0"},{51,"90"}}};
     return patchEntityFields(record,{{10,c.x},{20,c.y},{30,c.z},{40,a.radius},
@@ -68,7 +68,7 @@ std::string transform(const DXFEntity& entity,const BlockPart& part)
             const auto geometry=entity.geometry();
             if (entity.type()=="CIRCLE") {
                 const auto circle=geometry.circles.at(0); center=circle.center; normal=circle.normal;
-                major=OCSFrame({normal.x,normal.y,normal.z}).toWorld({circle.radius,0},0);
+                major=CartesianFrame({normal.x,normal.y,normal.z}).toWorld({circle.radius,0},0);
             } else {
                 const auto curve=geometry.segments.at(0); center=curve.arc->center;
                 normal=curve.arc->normal; major=sub(curve.start,center); sweep=curve.arc->sweep;
@@ -97,6 +97,7 @@ std::vector<std::string> EntityConversion::explode(const DXFEntity& entity)
         // blockParts resolves nested INSERTs and array placements through the
         // document's existing native block context, never display tessellation.
         for (const auto& part : entity.blockParts()) {
+            if (!part.visible) continue;
             auto raw=transform(*part.entity,part);
             const auto fields=nativeEntityFields(part.entity->record());
             std::map<int,std::string> values;

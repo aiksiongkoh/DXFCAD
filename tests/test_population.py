@@ -34,7 +34,7 @@ def finish(population):
 class PopulationTests(unittest.TestCase):
     def setUp(self):
         self.doc=FreeCAD.newDocument("PopulationTests")
-        self.source=DXFCAD.DXFDocument.parse(DRAWING)
+        self.source=DXFCAD.Drawing.parse(DRAWING)
 
     def tearDown(self):
         for name in list(FreeCAD.listDocuments()): FreeCAD.closeDocument(name)
@@ -82,7 +82,7 @@ class PopulationTests(unittest.TestCase):
         self.assertEqual(DXFCAD.current_drawing_bytes(root),self.source.serialize_bytes())
 
     def test_empty_and_unsupported_only_sources_still_have_a_root(self):
-        for source in (DXFCAD.DXFDocument.empty(4),DXFCAD.DXFDocument.parse(
+        for source in (DXFCAD.Drawing.empty(4),DXFCAD.Drawing.parse(
                 "0\nSECTION\n2\nENTITIES\n0\nSPLINE\n999\nretain me\n0\nENDSEC\n0\nEOF\n")):
             with transaction(self.doc,"Populate empty drawing"):
                 result=DXFCAD.populate_drawing(self.doc,source)
@@ -104,6 +104,21 @@ class PopulationTests(unittest.TestCase):
         for result in results:
             self.assertTrue(all(obj.DXFSourceRoot==result.root for obj in result.entities))
             self.assertEqual(DXFCAD.current_drawing_bytes(result.root),self.source.serialize_bytes())
+
+    def test_progress_counts_completed_entities_and_failure_rolls_back(self):
+        counts=[]
+        with transaction(self.doc,"Populate with progress"):
+            result=DXFCAD.populate_drawing(self.doc,self.source,
+                progress=lambda completed,total: counts.append((completed,total)))
+            finish(result)
+        self.assertEqual(counts,[(0,3),(1,3),(2,3),(3,3)])
+        before={o.Name for o in self.doc.Objects}
+        def fail(completed,total):
+            if completed==2: raise RuntimeError("progress failure")
+        with self.assertRaisesRegex(RuntimeError,"progress failure"):
+            with transaction(self.doc,"Fail progress"):
+                DXFCAD.populate_drawing(self.doc,self.source,progress=fail)
+        self.assertEqual({o.Name for o in self.doc.Objects},before)
 
     def test_failure_after_creation_rolls_back_population_in_existing_document(self):
         with transaction(self.doc,"Original drawing"):
@@ -130,7 +145,7 @@ class PopulationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=module_directory) as temp:
             path=Path(temp)/"drawing.dxf"; path.write_text(DRAWING)
             created=[]
-            def fail_presentation(population):
+            def fail_presentation(population, progress=None):
                 created.extend(population.entities)
                 raise RuntimeError("presentation failure")
             with patch("dxfcad_import.initialize_population",side_effect=fail_presentation):

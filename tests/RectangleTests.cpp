@@ -1,4 +1,4 @@
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -15,7 +15,7 @@ int main() {
         check(length==20);
         const auto reversed=readLWPolyline(createRectangle({5,8,3},{1,2,3}));
         check(reversed.closed() && reversed.vertices()[0].x==5);
-        const auto out=DXFDocument::parse(DXFDocument::empty(4).serialize({}, {}, {raw,raw}));
+        const auto out=Drawing::parse(Drawing::empty(4).serialize({}, {}, {raw,raw}));
         check(out.entities.size()==2 && out.entities[0]->handle()!=out.entities[1]->handle());
         rejects([] { createRectangle({1,2,0},{1,4,0}); });
         rejects([] { createRectangle({1,2,0},{4,2,0}); });

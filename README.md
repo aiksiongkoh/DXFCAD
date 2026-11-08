@@ -5,6 +5,14 @@ A standalone FreeCAD workbench for creating and manipulating native DXF entities
 DXFCAD is maintained independently of FreeCAD and XynaCAD. XynaCAD is a
 specialized downstream workbench that uses DXFCAD's APIs.
 
+## Contributing
+
+Follow the project instructions in [AGENTS.md](AGENTS.md). Read
+[ARCHITECTURE.md](ARCHITECTURE.md) before designing or substantially changing
+classes, interfaces, inheritance, ownership, or dependencies. Read
+[VERIFICATION.md](VERIFICATION.md) before implementing or modifying behavior,
+creating tests, or evaluating correctness.
+
 ## Architecture
 
 - C++ implements domain objects and algorithms, including geometry,
@@ -14,24 +22,192 @@ specialized downstream workbench that uses DXFCAD's APIs.
 - Native DXF entity data is authoritative; display geometry is derived from it.
 - Dependency direction: XynaCAD -> DXFCAD -> FreeCAD.
 
+Python commands share an explicit object model in `dxfcad_commands.py`:
+
+```text
+DXFCADCommand                         Resources, availability, activation contract
+├── CheckWorkbenchCommand
+├── ImportDXFCommand
+├── EntityCreationCommand             Create native DXF entities
+│   └── Line, circle, arc, rectangle, text and polyline creation commands
+├── SelectedDXFCommand                Act on selected native DXF objects
+│   └── Transform, drafting, contour, property and entity-edit commands
+└── ActiveDocumentCommand             Require an active FreeCAD document
+    ├── SavedViewsCommand
+    ├── ExportDXFCommand
+    └── PaperLayoutsCommand
+```
+
+These relationships express what each command is responsible for. Concrete
+commands retain their own activation workflows and error presentation; geometry
+and DXF semantics remain in C++. Type-specific editors specialize selection
+availability. Existing drafting specializations remain under `DraftingCommand`.
+
+### C++ source organization
+
+- `include/DXFCAD/` contains the public domain headers. Generic mathematical
+  values have their own headers (`Point2D.h`, `Vector3D.h`, `CartesianFrame.h`).
+- `src/` contains domain implementations and private geometry helpers.
+  `LineCorner.h` declares the corner object; `LineCorner.cpp` implements it.
+- `src/Entities/` contains private DXF entity declarations and implementations
+  used by the drawing reader. Their headers are not part of the public API.
+- `include/DXFCAD/Native/` and `src/Native/` contain the native FreeCAD document
+  object adapters. Include their headers as `<DXFCAD/Native/EntityObject.h>`,
+  for example. These objects require the optional FreeCAD SDK build.
+- `src/FreeCAD/` contains private document edit plans, editing sessions,
+  population, document operations, and shape conversion through Python APIs.
+- `src/Bindings/` contains Python module registration. It exposes the domain
+  and adapter objects without owning their implementations.
+
+Keep domain code independent of both adapter implementations. Place a helper
+in a private header when multiple implementations need it; keep helpers used
+by only one implementation local to that source file. Preserve meaningful
+inheritance when moving declarations or implementations between files.
+
+### Type names and DXF terminology
+
+Use a `DXF` prefix only when the name appears in Autodesk's DXF reference and
+the type represents that concept with the same meaning. A matching word alone
+does not qualify. The `DXFCAD` project/namespace name is separate from this rule.
+
+| Concept | Canonical type |
+| --- | --- |
+| Ordered group-code/value data | `GroupSequence` |
+| Complete drawing model | `Drawing` |
+| Native entity category | `DXFEntity` |
+| LWPOLYLINE entity | `DXFLWPolyline` |
+| POLYLINE entity and its VERTEX/SEQEND sequence | `DXFPolyline` |
+| ELLIPSE and SPLINE entities | `DXFEllipse`, `DXFSpline` |
+| VIEWPORT entity and LAYER table metadata | `DXFViewport`, `DXFLayer` |
+| LAYOUT object and its paper-space content | `DXFLayout` |
+| Cartesian frame used for OCS conversions | `CartesianFrame` |
+| General vector, including native extrusion values | `Vector3D` |
+| Derived camera and snapping results | `ViewFrame`, `SnapPoint` |
+| FreeCAD persistence adapters | `DrawingObject`, `EntityObject` |
+| Python lifecycle/presentation adapters | `EntityProxy`, `EntityViewProvider` |
+
+Implementation-private native entities likewise use `DXFLine`, `DXFArc`,
+`DXFCircle`, `DXFText`, `DXFMText`, `DXFDimension` and `DXFInsert`.
+Types such as `CircleGeometry`, `TextGeometry`, `LWPolylineVertex` and
+`LWPolylineSegment` describe derived geometry or editing values rather than
+complete native entity types; their names remain unprefixed.
+
+The naming follows Autodesk's [entity reference](https://help.autodesk.com/cloudhelp/2018/ENU/AutoCAD-DXF/files/GUID-7D07C886-FD1D-4A0C-A7AB-B4D21F18E484.htm),
+[group-code reference](https://help.autodesk.com/cloudhelp/2024/ENU/AutoCAD-DXF/files/GUID-3F0380A5-1C15-464D-BC66-2C5F094BCFB9.htm)
+and [OCS definition](https://help.autodesk.com/cloudhelp/2024/ENU/AutoCAD-DXF/files/GUID-D99F1509-E4E4-47A3-8691-92EA07DC88F5.htm).
+
+Use these names throughout the C++ and Python APIs, header paths, source files,
+tests and FreeCAD runtime registration. There are no aliases for retired names.
+Native FreeCAD types are registered as `DXFCAD::DrawingObject` and
+`DXFCAD::EntityObject`. Existing FCStd files that require retired runtime or
+Python proxy names must be reimported from their source drawings. Dependent
+C++ code must be rebuilt against the renamed types.
+
+`DXFItem` groups the classes modeling DXF Reference keywords and named concepts.
+It is a project-defined superclass, not a keyword in the DXF format. Its
+abstract interface supplies a common type and safe polymorphic destruction;
+record, handle, geometry and coordinate APIs remain with the relevant subtypes.
+
+```text
+DXFItem
+├── DXFEntity
+│   ├── DXFLWPolyline
+│   ├── DXFPolyline
+│   ├── DXFLine
+│   ├── DXFCircle
+│   ├── DXFArc
+│   ├── DXFEllipse
+│   ├── DXFSpline
+│   ├── DXFText
+│   ├── DXFMText
+│   ├── DXFDimension
+│   └── DXFInsert
+├── DXFViewport
+└── DXFLayer
+```
+
+The Python-exposed DXF subtypes share the `DXFItem` base. `CartesianFrame` and
+`Vector3D` are generic mathematical types outside this hierarchy.
+`CartesianFrame(normal)` constructs a right-handed orthonormal frame through
+the world origin. Its normal-based axis-selection convention preserves DXF OCS
+mapping; it exposes axes, coordinate conversions and line/plane intersection
+in C++ and Python. The supplied vector is not modified or normalized in place.
+Native extrusion values use `Vector3D`, with `(0, 0, 1)` supplied explicitly as
+the entity default; a zero-initialized general vector is `(0, 0, 0)`.
+`DXFLayer` retains brace initialization through a constructor and is not a C++
+aggregate. `Drawing`, `GroupSequence`, `ChangeSet`, `EditPlan` and FreeCAD adapters
+also remain outside the hierarchy. Dependent C++ binaries must be rebuilt.
+
+### Change sets and application plans
+
+A domain change set holds calculated, validated proposed DXF records. It does
+not change FreeCAD document objects. An application plan owns the FreeCAD object
+references and provides `apply()` inside the caller's transaction. Most plans
+also retain snapshots to reject stale state; that guarantee is specific to each
+concrete plan. Python exposes each adapter under its actual C++ class name.
+
+The abstract `ChangeSet` superclass expresses the shared domain contract:
+concrete instances own validated proposed results and provide read-only
+inspection without applying edits. Each subtype retains its specific accessors.
+The base has a virtual destructor for ownership through `ChangeSet` pointers;
+protected copy/move operations preserve concrete value semantics and prevent
+slicing through the base.
+
+```text
+ChangeSet
+├── BatchTransformChangeSet
+├── ContourChangeSet
+└── CornerChangeSet
+```
+
+Application plans derive from the abstract `EditPlan` base. They contain their
+change sets rather than inheriting from them, and remain distinct from UI
+commands. The base provides safe polymorphic destruction; concrete plans retain
+their own `apply()` return values, preview interfaces and lifecycle rules.
+`EditPlan` is exposed in Python for `isinstance`/`issubclass` checks, without a
+public constructor. `LayerEditPlan` remains an implementation-private C++ type.
+
+```text
+EditPlan
+├── LayerEditPlan
+├── BatchObjectTransformPlan
+│   └── EntityCopyPlan
+├── EntityUpdatePlan
+├── ContourObjectEditPlan
+├── ContourOperationPlan
+├── CornerObjectEditPlan
+├── TrimPlan
+└── OffsetPlan
+```
+
+| Domain change set (C++) | Application plan (C++ and Python) |
+| --- | --- |
+| `BatchTransformChangeSet` | `BatchObjectTransformPlan` |
+| `ContourChangeSet` | `ContourObjectEditPlan` |
+| `CornerChangeSet` | `CornerObjectEditPlan` |
+
+Other application plans, such as `EntityUpdatePlan`, `TrimPlan` and `OffsetPlan`,
+retain the `Plan` suffix because they apply edits. Factory function names such
+as `prepare_batch_transform()` and `prepare_line_fillet()` remain unchanged.
+
 ## Current scope
 
-`LWPolylineEntity` is the first implemented C++ domain entity. It preserves
+`DXFLWPolyline` is the first implemented C++ domain entity. It preserves
 vertices, bulges, constant and per-segment widths, closed state, elevation, and
 extrusion direction. Python task panels provide vertex editing and native transforms.
 
 The workbench includes a standalone C++ domain library and Python UI entry points.
-`DXFCAD::LWPolylineEntity : DXFCAD::DXFEntity` owns the authoritative native DXF
+`DXFCAD::DXFLWPolyline : DXFCAD::DXFEntity` owns the authoritative native DXF
 record and provides OCS vertices, bulges, constant and per-segment widths, closed
 state, elevation, extrusion direction, geometry, snapping, and editing behavior.
-`DXFEntity` is declared in `DXFEntity.h`, and `LWPolylineEntity` in
-`LWPolylineEntity.h`. Both C++ and Python use the name `LWPolylineEntity`.
+`DXFEntity` is declared in `DXFEntity.h`, and `DXFLWPolyline` in
+`DXFLWPolyline.h`. Both C++ and Python use the name `DXFLWPolyline`.
 Construction rejects nonfinite values, negative widths, and a zero extrusion
 direction. Coordinates, bulges, elevation, and extrusion values are preserved;
 geometry is derived separately. Empty polylines are allowed as an initial editing
 state.
 
-`parseEntity()` / Python `parse_entity()` now return an `LWPolylineEntity` for
+`parseEntity()` / Python `parse_entity()` now return a `DXFLWPolyline` for
 LWPOLYLINE records. `fromRaw()` / `from_raw()` retains the complete native record.
 Vertex/property edits and object-returning transforms preserve handles, owners,
 unknown fields, XDATA, non-closure flags, and surviving vertex IDs. Insertion and
@@ -60,7 +236,7 @@ No FreeCAD or XynaCAD source changes are needed.
 
 LWPolyline also has a native FreeCAD document object, enabled with
 `DXFCAD_BUILD_NATIVE_OBJECTS=ON`. Its inheritance is
-`App::DocumentObject -> App::GeoFeature -> Part::Feature -> DXFCAD::DXFEntityObject -> DXFCAD::LWPolylineObject`.
+`App::DocumentObject -> App::GeoFeature -> Part::Feature -> DXFCAD::EntityObject -> DXFCAD::LWPolylineObject`.
 The shared base owns persistent DXF properties, recomputation, error handling,
 and restoration in C++. LWPolyline specializes width/centerline rendering and
 its `ShowWidths` property; Python provides its view provider and UI workflow.
@@ -68,7 +244,7 @@ The persisted type name remains `DXFCAD::LWPolylineObject`.
 
 LINE and ARC also have native `DXFCAD::LineObject` and `DXFCAD::ArcObject`
 classes. They derive from `Part::Feature` through the shared abstract
-`DXFCAD::DXFEntityObject` base, which owns native properties, recomputation, and
+`DXFCAD::EntityObject` base, which owns native properties, recomputation, and
 restoration. LINE preserves world-coordinate endpoints; ARC uses the existing C++
 OCS transform and counterclockwise sweep semantics. Their shapes are built directly
 with OpenCASCADE, with Python used only for presentation and UI.
@@ -94,17 +270,19 @@ width-based wrapping, line spacing, and the nine attachment positions. MTEXT
 insertion and direction vectors use WCS; extrusion and rotation determine the
 text plane. Layout uses measured substitute-font outline bounds, so spacing,
 whitespace, wrapping, and attachment can differ from the original text style.
-Style-inherited flow uses horizontal substitute-font layout. Rich inline
+Style-inherited flow uses horizontal substitute-font layout. Balanced groups,
+regular font declarations, uniform character-height overrides, and Unicode
+escapes are supported as described under current limitations below. Other inline
 formatting, paragraph formatting, columns, background fills, and vertical flow
 are reported as unsupported; their original records remain available for export.
 
-Linear/rotated DIMENSION entities can display their saved picture block using
+Standard DIMENSION kinds can display their saved picture block using
 native `DXFCAD::DimensionObject`, derived from `TextObject`. C++ resolves and
 persists the referenced block in hidden `DXFContext`; `DXFData` retains the
 dimension record. This displays stored lines/arcs/circles, plain text, and filled
 triangular SOLID arrowheads. Definition POINT markers are omitted. Children must
 use BYBLOCK color, and the picture must have a zero block base with no dimension
-insertion/extrusion transform. Nested INSERTs, other dimension types, complex
+insertion/extrusion transform. Nested INSERTs, unsupported dimension types, complex
 text, and unsupported picture contents remain warnings. Text uses a substitute
 font; original picture records survive export unchanged. Dimensions are display
 only: changing their native record is rejected at export because picture
@@ -118,7 +296,7 @@ C++ resolves viewport-specific frozen-layer handles against the layer table;
 missing or ambiguous references keep the view unavailable. Layer-name matching
 ignores ASCII letter case. Paper-space overview viewports, perspective,
 tilted, and clipped views remain listed with an availability explanation.
-This is model navigation: paper layouts are not rendered, and horizontal framing follows the FreeCAD window's
+This command provides model navigation; horizontal framing follows the FreeCAD window's
 aspect ratio. The vertical model extent matches the saved view height. Navigation
 does not change entity coordinates or source viewport records. Frozen layers are
 previewed only on objects belonging to the selected drawing. Switching views or
@@ -127,9 +305,32 @@ hidden objects, globally hidden layers, and other drawings retain their visibili
 The camera remains at the chosen view after closing. Saved views are
 available after FCStd restoration from the persisted drawing snapshot.
 
+**DXFCAD > Paper Layouts...** opens a separate, read-only sheet preview. Choose a
+layout to see supported paper-space entities together with enabled rectangular
+top-view model viewports. Each viewport retains its paper position, scale, view
+twist and frozen layers. C++ projects and clips geometry to each viewport;
+Python presents the resulting paths. Dashed gray rectangles identify previewed
+viewport boundaries. White ACI display colors appear black on the white sheet.
+Turning off a viewport's border layer does not disable its model window, matching
+Autodesk's [layout viewport behavior](https://help.autodesk.com/cloudhelp/2019/ENU/AutoCAD-Core/files/GUID-DF5C5E9A-113E-456E-AFC4-4CEDAEE60A78.htm).
+Curves use a 0.02 native paper-unit display deflection; this does not modify the
+authoritative curves. Layout limits define the sheet background when available;
+otherwise the preview fits its content. Printer margins, plot rotation, plot
+styles and physical output size are not simulated.
+
+`Drawing.layouts` contains `DXFLayout` objects with native records, tab order,
+paper entities and viewports. Model entities remain in `Drawing.entities` with
+their existing stable edit indices. Paper entities remain in the retained source
+snapshot and are not editable model features. `DXFCAD.preview_layout(drawing,
+layout_name, font_file, tolerance=0.02)` builds disposable display paths without
+mutating a document. The viewer uses the current drawing, including model edits,
+and works after FCStd restoration without the source file. Perspective, tilted,
+depth-clipped and nonrectangular views remain unsupported and are reported in
+the preview notices. Unsupported entity records survive DXF export.
+
 ## Native drawing container
 
-Native builds create `DXFCAD::DXFDocumentObject`, derived from
+Native builds create `DXFCAD::DrawingObject`, derived from
 `App::DocumentObjectGroup`, as the drawing root. It declares persistent
 `DXFSourceData`, `SourceFile`, `SourceUnitCode`, `ImportWarnings`, and
 `DisplayNotes` properties in C++. Standard FreeCAD group membership retains
@@ -138,7 +339,7 @@ and stable `DXFSourceIndex` slots for export.
 
 `DXFCAD.create_drawing(document, drawing, source_file="", label="DXF Drawing",
 name="DXFDrawing")` creates and initializes the container from an independent
-C++ `DXFDocument`. `DXFCAD.drawing_document(root)` reconstructs the retained
+C++ `Drawing`. `DXFCAD.drawing_document(root)` reconstructs the retained
 source snapshot. `DXFCAD.set_drawing_source(root, drawing)` updates that snapshot
 and its units/warnings while preserving source-file provenance. These APIs
 handle existing generic drawing groups too. Import, new drawing creation,
@@ -155,18 +356,18 @@ and autoloads the registered DXFCAD types on restore.
 
 Compatibility builds use a generic `App::DocumentObjectGroup` through the same
 factory. Existing saved generic roots remain readable and editable without
-automatic type conversion. `DXFCAD.FreeCADDocumentObject` covers both adapters,
+automatic type conversion. `DXFCAD.FreeCADDrawingObject` covers both adapters,
 group links, metadata undo/redo, failed-import rollback, legacy groups, native
 snapshot validation, and cold restore/export after deleting the source DXF.
 
-Native `DXFEntityObject` declares `DXFSourceRoot` and `DXFSourceIndex` in C++.
+Native `EntityObject` declares `DXFSourceRoot` and `DXFSourceIndex` in C++.
 `DXFCAD.attach_entity(entity, root, source_index=-1)` validates ownership before
 assigning them: entities must share the drawing's document, source slots must
 exist and be unique, and an entity cannot silently switch to another drawing.
 Legacy and compatibility objects receive the same properties through this API.
 FreeCAD group membership continues to organize entities under layer groups.
 
-`DXFCAD.current_drawing(root)` returns a C++ `DXFDocument` assembled from the
+`DXFCAD.current_drawing(root)` returns a C++ `Drawing` assembled from the
 retained snapshot and current owned entities. `DXFCAD.current_drawing_bytes(root)`
 returns its validated export bytes. The C++ domain assembler replaces original
 slots, omits deleted entities and appends new entities (`source_index=-1`), while
@@ -450,16 +651,21 @@ widths), basic TEXT, plain MTEXT, and nested INSERTs. Existing Move, Copy, Rotat
 Mirror, Scale, and DXF Properties workflows operate on the whole instance and
 preserve block definitions. Copies export as INSERT references with new handles;
 export never explodes the block. C++ APIs `DXFEntity::blockParts()` and
-`DXFDocument::resolveEntity()` are exposed as Python `block_parts()` and
+`Drawing::resolveEntity()` are exposed as Python `block_parts()` and
 `resolve_entity()`. Snapping includes insertion points and transformed child
 endpoints, vertices, centers, and midpoints; block-curve intersection snapping
 is deferred.
 
-This first version supports one inherited display style per instance: child
-layers must be layer 0 or the instance layer, and child colors must be BYBLOCK
-or BYLAYER. BYLAYER children require a BYLAYER instance color. Other child layer
-or color combinations produce an import warning instead of an inaccurate
-display. Attributes/ATTDEF, external references, unsupported block contents,
+Block parts resolve their own layer, color, and visibility in C++. Layer 0
+inherits the enclosing INSERT layer; named child layers keep their own style.
+BYBLOCK colors inherit the enclosing instance, while BYLAYER colors use the
+resolved layer. Explicit ACI and true colors are retained. Nested instances
+propagate these rules, and the Python view provider applies per-edge and
+per-face colors through FreeCAD's standard properties. Referenced layer records
+are included in the dependency cache for source-free restore and are refreshed
+when drawing layer properties change. Hidden child layers omit their geometry;
+the top-level INSERT's layer group controls its overall visibility.
+Attributes/ATTDEF, external references, unsupported block contents,
 and cycles are also retained as opaque source records with warnings. Nesting
 is limited to 32 levels and expanded content/arrays are bounded to avoid
 unbounded recomputation. Block definition creation/editing, attribute editing,
@@ -627,7 +833,7 @@ import sys
 sys.path.insert(0, "C:/path/to/DXFCAD/build/python")
 import DXFCAD
 
-polyline = DXFCAD.LWPolylineEntity(
+polyline = DXFCAD.DXFLWPolyline(
     vertices=[
         DXFCAD.LWPolylineVertex(x=0, y=0, bulge=0.5),
         DXFCAD.LWPolylineVertex(x=10, y=0, start_width=1, end_width=2),
@@ -635,7 +841,7 @@ polyline = DXFCAD.LWPolylineEntity(
     closed=False,
     constant_width=0,
     elevation=3,
-    extrusion=DXFCAD.ExtrusionDirection(0, 0, 1),
+    extrusion=DXFCAD.Vector3D(0, 0, 1),
 )
 print(polyline.vertices[0].bulge)
 ```
@@ -643,7 +849,7 @@ print(polyline.vertices[0].bulge)
 Properties are read-only. `vertices` returns a list of copied vertex values;
 `extrusion` returns a copied direction. Changing the list cannot alter native
 state, and snapshots remain valid after the polyline is released. Vertex and
-direction values are validated by the C++ `LWPolylineEntity` constructor when
+direction values are validated by the C++ `DXFLWPolyline` constructor when
 assembled into an entity. Domain validation failures become Python `ValueError`;
 invalid argument types become `TypeError`. No geometry or validation is implemented
 in Python. The binding tests cover these behaviors through the compiled module.
@@ -818,7 +1024,7 @@ persistence, and independent DXF reading.
 ## Move objects
 
 Batch move/copy/rotate/scale/mirror now use the independent C++
-`BatchTransformPlan` record model and its FreeCAD adapter. For example:
+`BatchTransformChangeSet` record model and its FreeCAD adapter. For example:
 
 ```python
 from dxfcad_edit import apply_batch_plan
@@ -950,7 +1156,7 @@ undo/redo, persistence, export and task-panel cleanup.
 
 ## Contour cleanup
 
-Contour replacement uses an independent C++ `ContourEditPlan` domain object.
+Contour replacement uses an independent C++ `ContourChangeSet` domain object.
 It validates the complete proposed drawing, decides whether the first result
 retains the original object/handle/source slot, removes identity from new
 pieces, and accounts for deleted originals while retaining unselected and
@@ -1028,7 +1234,7 @@ the commands, real viewport picking, preview/cancel, Apply, undo/redo and export
 ## Offset and fillet
 
 Separate-LINE fillet/chamfer application uses an independent C++
-`CornerEditPlan` and a FreeCAD adapter:
+`CornerChangeSet` and a FreeCAD adapter:
 
 ```python
 from dxfcad_edit import apply_corner_plan
@@ -1295,7 +1501,7 @@ The C++ editing APIs return validated LWPolyline values without changing the
 original. `read_lwpolyline(raw)`, `update_lwpolyline(raw, model, origins)`, and
 `create_lwpolyline(model, layer="0")` handle native record semantics. Use `-1` for
 new vertices in `origins`; existing vertices use their original indices. The
-default mapping is positional when the count is unchanged. `DXFDocument.empty`,
+default mapping is positional when the count is unchanged. `Drawing.empty`,
 `serialize`, and `write` provide drawing-level export with replacement indices,
 deleted indices, and added records. Python `dxfcad_edit.apply_polyline` and
 `create_polyline` add FreeCAD transactions; `dxfcad_export.export_dxf` writes a
@@ -1357,12 +1563,46 @@ records are retained, subject to the import limitations below.
 
 ## Import and display a drawing
 
-After installing the native build, select **DXFCAD > Import Native DXF...**.
+After installing the native build, select **DXFCAD > Import DXF/DWG...**.
 Choose a drawing to create a new FreeCAD document, grouped by DXF layer. Source
 layer off/frozen state, entity visibility, and ACI/true colors are used for
 presentation; white strokes use FreeCAD's foreground color for contrast. Toggle
 layer groups in the tree with Space to inspect hidden layers. The same importer
 is registered as **DXFCAD native DXF** in FreeCAD's file dialog.
+
+DWG files are registered as **DXFCAD DWG via DXF conversion**. DXFCAD delegates
+conversion to FreeCAD's Draft `importDWG.convertToDxf` API, reusing its converter
+discovery, **Edit > Preferences > Import/Export > DWG** settings, and automatic
+fallback between LibreDWG, ODA File Converter, and QCAD. Install and configure
+one of these external converters separately. DXFCAD does not bundle proprietary
+converter software. The converted DXF is parsed by DXFCAD's existing C++ domain
+layer and displayed as DXFCAD objects.
+
+Before conversion, DXFCAD copies the DWG byte-for-byte into an isolated
+temporary directory as `drawing.dwg`. This avoids converter filename filters
+interpreting brackets or other special characters in the original basename.
+The original file is never renamed. The staging directory is removed on
+success, conversion failure, and parse failure. Relative external-reference
+resolution is not provided by this single-file staging workflow.
+
+`SourceFile` retains the original DWG path; the converted DXF snapshot is stored
+in the FCStd document, so reopening, recomputing, and DXF export need neither the
+original DWG nor the converter. The returned temporary DXF and its empty FreeCAD
+temporary directory are removed after parsing, including on parse failure.
+Conversion failures leave the destination document unchanged. Report view and
+the drawing's `DisplayNotes` record that the source was converted. Conversion may lose DWG-only data, and
+display remains limited to DXFCAD's supported DXF entities. DWG export is not
+provided. `Drawing.read()` remains a DXF-only C++ API; scripting DWG import
+uses `dxfcad_import.import_dxf()` or the registered `open()` / `insert()` hooks.
+
+Run `tests/test_dwg_import.py <module-directory>` with the matching FreeCAD
+Python to check conversion failures, temporary-file cleanup, original-file
+provenance, insert undo, source-free FCStd restore, and DXF export. Set
+`DXFCAD_TEST_ODA=1` to additionally generate and import synthetic DWGs in the
+2000, 2004, 2007, 2010, 2013, and 2018 formats, with bracketed/Unicode filenames,
+using the installed ODA converter.
+This checks format compatibility with generated drawings, not coverage of most
+real-world DWG content.
 
 Selecting a CIRCLE or its edge also highlights its center with a screen-sized
 point in the selection color. The marker disappears on deselection or hiding the
@@ -1399,7 +1639,7 @@ lifecycle proxy delegates geometry work to the extension, which calls FreeCAD's
 Part Python APIs. This mode requires no FreeCAD C++ SDK. Existing proxy-backed
 FCStd files remain readable; they are not automatically replaced with native
 objects. Reimporting a drawing with the native build creates native LWPolyline,
-LINE, ARC, CIRCLE, TEXT, MTEXT, and supported DIMENSION
+LINE, ARC, CIRCLE, TEXT, MTEXT, supported DIMENSION, LEADER, and INSERT
 objects while preserving the existing documents.
 
 In both modes, hidden `DXFData` stores the authoritative native entity group
@@ -1415,20 +1655,48 @@ automatic unit conversion, including when units are unspecified.
 
 The current importer supports ASCII/UTF-8 DXF model-space LWPOLYLINE, LINE, ARC,
 CIRCLE, TEXT with standard horizontal and vertical justification, plain MTEXT,
-saved pictures of supported linear/rotated DIMENSION entities, and supported
-BLOCK/INSERT instances.
+saved pictures of standard DIMENSION kinds, straight unannotated LEADER paths,
+and supported BLOCK/INSERT instances.
 Unsupported entities and TEXT aligned/fit/horizontal-middle modes,
 oblique, or mirrored styles are reported in the import group's `ImportWarnings`
-and Report view. Paper space, binary DXF, legacy text
-codepage conversion, rich DXF text formatting, line-type patterns, thickness,
-are not implemented. LWPolylines display width regions or centerlines using
+and Report view. Paper-space editing, binary DXF, general legacy text
+codepage conversion, rich DXF text formatting, line-type patterns, and thickness
+are not implemented. Paper layouts have the read-only preview described above.
+LWPolylines display width regions or centerlines using
 **Show Widths**; widths remain authoritative in the stored native record. Zero-length straight segments
 do not create Part edges. TEXT uses outline wires in a substitute TrueType font
 (Arial on Windows), rather than reproducing the DXF font style. The `TextFont`
 property selects the display font and can be changed before recomputing.
-MTEXT shares that font property. `DXFCAD.MText` and `DXFCAD.FreeCADMText` test
+MTEXT shares that font property. Its display also accepts balanced formatting
+groups (up to eight levels), regular font declarations (`\f`/`\F`, using the
+selected substitute font), and absolute or relative `\H` overrides when all
+visible characters have one height. The original formatting remains in the
+native records. Mixed character heights, bold/italic overrides, tabs, and other
+inline formatting still produce import warnings. Exact line spacing uses the
+nominal height; at-least spacing also accommodates a larger displayed height.
+MTEXT Unicode escapes (`\U+hhhh`, including paired UTF-16 surrogates) decode to
+UTF-8 for display, including cached DIMENSION text. Literal escapes stay in
+the native records and DXF export; malformed escapes and unpaired surrogates
+are rejected.
+`DXFCAD.MText` and `DXFCAD.FreeCADMText` test
 parsing/layout, wrapping, attachment, tilted WCS placement, font recovery,
 undo/redo, source-free cold restore, and preservation through DXF export.
+
+Cached DIMENSION display covers rotated/linear, aligned, angular, diameter,
+radius, three-point angular, and ordinate records with a usable picture BLOCK.
+Definition points are validated by kind. Pictures are displayed from their
+native cached geometry; dimension regeneration/editing and transformed picture
+contexts remain unsupported.
+
+`DXFLeader` derives straight WCS paths and standard filled arrowheads from the
+retained vertices and DIMSTYLE size/scale. Its native FreeCAD adapter is
+`LeaderObject`. Style colors honor DIMCLRD and the LEADER BYBLOCK fallback.
+Spline paths, associated annotations, custom arrow blocks, style overrides,
+and LEADER editing still report explicit limitations. `DXFCAD.Leader` and
+`DXFCAD.FreeCADLeader` verify analytical arrow area, record preservation, and
+source-free restore. Native source bytes remain authoritative; declared
+pre-2007 Windows-1252 text in display dependency caches is decoded to UTF-8
+for FreeCAD/Python without changing the exported drawing bytes.
 
 For scripting in FreeCAD:
 

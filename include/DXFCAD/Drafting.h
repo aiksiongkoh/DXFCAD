@@ -1,12 +1,12 @@
 #pragma once
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <set>
 namespace DXFCAD {
 // Shared native-record editing utilities retain application groups and XDATA.
-DXFRecord readDXFGroups(const std::string& ascii);
-DXFRecord nativeEntityFields(const DXFRecord& record);
-std::string patchEntityFields(const DXFRecord& record, const std::map<int,double>& values);
-std::string patchEntityStringFields(const DXFRecord& record, const std::map<int,std::string>& values, const std::set<int>& removed = {});
+GroupSequence readDXFGroups(const std::string& ascii);
+GroupSequence nativeEntityFields(const GroupSequence& record);
+std::string patchEntityFields(const GroupSequence& record, const std::map<int,double>& values);
+std::string patchEntityStringFields(const GroupSequence& record, const std::map<int,std::string>& values, const std::set<int>& removed = {});
 struct LineFilletResult {
     std::string first, second, arc;
 };

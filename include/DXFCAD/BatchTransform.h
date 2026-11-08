@@ -1,16 +1,17 @@
 #pragma once
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/ChangeSet.h>
+#include <DXFCAD/Drawing.h>
 
 namespace DXFCAD {
 struct BatchTransformInput {
     std::string raw, context;
 };
 
-// Independent, immutable record plan. FreeCAD ownership and transactions are
+// Calculated record changes with read-only access. FreeCAD ownership and transactions are
 // handled by the persistence adapter; entity algorithms remain in DXFEntity.
-class BatchTransformPlan {
+class BatchTransformChangeSet : public ChangeSet {
 public:
-    BatchTransformPlan(const std::vector<BatchTransformInput>& inputs,
+    BatchTransformChangeSet(const std::vector<BatchTransformInput>& inputs,
                        const std::string& operation, Vector3D offset = {},
                        double value = 0, Vector3D pivot = {}, bool allowIdentity = false);
     bool copies() const noexcept { return copies_; }

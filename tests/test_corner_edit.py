@@ -40,6 +40,7 @@ class CornerEditTests(unittest.TestCase):
             names=[o.Name for o in self.lines]
             before=[o.DXFData for o in self.lines]
             plan=operation()
+            self.assertIs(type(plan), DXFCAD.CornerObjectEditPlan)
             expected=plan.drawing_bytes
             self.assertEqual(len(plan.preview_records),3)
             self.assertEqual([o.DXFData for o in self.lines],before)
@@ -73,12 +74,12 @@ class CornerEditTests(unittest.TestCase):
             changed.DXFData=raw
         plan=DXFCAD.prepare_line_fillet(self.lines,2)
         source=DXFCAD.drawing_document(self.root)
-        DXFCAD.set_drawing_source(self.root,DXFCAD.DXFDocument.parse(DXFCAD.set_layer(source.serialize(),"Extra",3,True)))
+        DXFCAD.set_drawing_source(self.root,DXFCAD.Drawing.parse(DXFCAD.set_layer(source.serialize(),"Extra",3,True)))
         with self.assertRaisesRegex(ValueError,"changed"): plan.apply()
         self.assertEqual([o.DXFData for o in self.lines],[A,B])
 
     def test_wrong_selection_types_and_results_do_not_mutate(self):
-        other_root=DXFCAD.create_drawing(self.doc,DXFCAD.DXFDocument.empty(4))
+        other_root=DXFCAD.create_drawing(self.doc,DXFCAD.Drawing.empty(4))
         other=create_line(self.doc,DXFCAD.Vector3D(10,0,0),DXFCAD.Vector3D(10,10,0),other_root)
         names={o.Name for o in self.doc.Objects}
         with self.assertRaisesRegex(ValueError,"same DXFCAD drawing"):

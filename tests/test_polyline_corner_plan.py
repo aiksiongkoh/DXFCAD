@@ -14,7 +14,7 @@ import DXFCAD
 assert Path(DXFCAD.__file__).parent == module_directory
 from dxfcad_import import import_dxf
 from dxfcad_edit import apply_entity_update, create_polyline
-from dxfcad_objects import DXFObjectProxy
+from dxfcad_objects import EntityProxy
 
 POLY = ("0\nLWPOLYLINE\n5\nAB\n330\nFF\n8\n0\n90\n3\n70\n128\n38\n3\n230\n2\n39\n0.1\n"
         "10\n0\n20\n0\n40\n0.2\n41\n0.4\n91\n10\n10\n10\n20\n0\n40\n0.6\n41\n0.8\n91\n11\n"
@@ -125,7 +125,7 @@ class PolylineCornerPlanTests(unittest.TestCase):
             self.assertEqual(DXFCAD.current_drawing_bytes(self.root), before)
 
     def test_closed_seam_and_detached_entities(self):
-        model = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0, 0), DXFCAD.LWPolylineVertex(10, 0),
+        model = DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(0, 0), DXFCAD.LWPolylineVertex(10, 0),
                                   DXFCAD.LWPolylineVertex(10, 10), DXFCAD.LWPolylineVertex(0, 10)], True)
         closed = create_polyline(self.doc, model, self.root)
         for fillet in (True, False):
@@ -135,7 +135,7 @@ class PolylineCornerPlanTests(unittest.TestCase):
             self.assertEqual(len(DXFCAD.read_lwpolyline(closed.DXFData).vertices), 5)
             self.doc.undo(); self.doc.recompute()
         detached = DXFCAD.create_feature(self.doc, DXFCAD.parse_entity(POLY), "")
-        if detached.TypeId == "Part::FeaturePython": DXFObjectProxy(detached)
+        if detached.TypeId == "Part::FeaturePython": EntityProxy(detached)
         self.doc.recompute()
         plan = DXFCAD.prepare_polyline_fillet(detached, 1, 2)
         self.assertEqual(plan.drawing_bytes, {})

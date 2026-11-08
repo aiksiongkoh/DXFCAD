@@ -96,7 +96,7 @@ class EntityCopyTests(unittest.TestCase):
         with self.assertRaises(ValueError): plan.apply()
 
     def test_multiple_drawings_and_foreign_document_rejection(self):
-        root = DXFCAD.create_drawing(self.doc, DXFCAD.DXFDocument.empty(4))
+        root = DXFCAD.create_drawing(self.doc, DXFCAD.Drawing.empty(4))
         line = create_line(self.doc, DXFCAD.Vector3D(), DXFCAD.Vector3D(2, 0, 0), root)
         objects = [self.objects[0], line]
         plan = DXFCAD.prepare_entity_copy(objects, [DXFCAD.offset_entity(o.DXFData, 1) for o in objects])
@@ -132,7 +132,7 @@ class EntityCopyTests(unittest.TestCase):
         self.assertEqual(DXFCAD.current_drawing_bytes(self.root), before)
 
     def test_polyline_display_preferences_and_native_provenance(self):
-        poly = create_polyline(self.doc, DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(4, 0)]), self.root)
+        poly = create_polyline(self.doc, DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(4, 0)]), self.root)
         poly.ShowWidths = True
         raw = DXFCAD.offset_entity(poly.DXFData, 1)
         clone = create_related([(poly, raw)], "Offset polyline")[0]

@@ -84,7 +84,7 @@ class EntityUpdateTests(unittest.TestCase):
         self.assertEqual(self.text.DXFData, self.before)
 
     def test_multiple_drawings_one_document_and_foreign_document_rejection(self):
-        root = DXFCAD.create_drawing(self.doc, DXFCAD.DXFDocument.empty(4))
+        root = DXFCAD.create_drawing(self.doc, DXFCAD.Drawing.empty(4))
         second = create_text(self.doc, "Second", 1, DXFCAD.Vector3D(), root=root)
         records = [self.after, DXFCAD.edit_text(second.DXFData, "Changed", 2)]
         plan = DXFCAD.prepare_entity_update([self.text, second], records)
@@ -120,7 +120,7 @@ class EntityUpdateTests(unittest.TestCase):
 
     def test_imported_identity_unknown_data_and_opaque_records_preserved(self):
         raw = "0\nSECTION\n2\nENTITIES\n0\nTEXT\n5\nAB\n330\nFF\n1\nLabel\n40\n2\n10\n0\n20\n0\n1001\nTEST\n1000\nretain\n0\nSPLINE\n999\nopaque\n0\nENDSEC\n0\nEOF\n"
-        population = DXFCAD.populate_drawing(self.doc, DXFCAD.DXFDocument.parse(raw), font_file=default_text_font())
+        population = DXFCAD.populate_drawing(self.doc, DXFCAD.Drawing.parse(raw), font_file=default_text_font())
         initialize_population(population)
         obj = population.entities[0]
         updated = DXFCAD.edit_text(obj.DXFData, "Updated", 3)

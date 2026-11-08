@@ -36,7 +36,7 @@ class NativeObjectTests(unittest.TestCase):
 
     def test_native_inheritance_geometry_and_metadata(self):
         self.assertEqual(self.obj.TypeId, "DXFCAD::LWPolylineObject")
-        self.assertTrue(self.obj.isDerivedFrom("DXFCAD::DXFEntityObject"))
+        self.assertTrue(self.obj.isDerivedFrom("DXFCAD::EntityObject"))
         self.assertTrue(self.obj.isDerivedFrom("Part::Feature"))
         self.assertTrue(self.obj.isDerivedFrom("App::DocumentObject"))
         self.assertNotIn("Proxy", self.obj.PropertiesList)
@@ -115,7 +115,7 @@ sys.path.insert(0, sys.argv[1])
 doc = FreeCAD.openDocument(sys.argv[2])
 obj = doc.getObject('Polyline')
 assert obj.TypeId == 'DXFCAD::LWPolylineObject'
-assert obj.isDerivedFrom('DXFCAD::DXFEntityObject')
+assert obj.isDerivedFrom('DXFCAD::EntityObject')
 assert 'Proxy' not in obj.PropertiesList
 assert 'dxfcad_objects' not in sys.modules
 obj.Shape = __import__('Part').Shape()

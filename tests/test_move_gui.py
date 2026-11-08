@@ -142,7 +142,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert tool.callback is None and tool.overlay is None
     out = folder/"moved.dxf"
     export_dxf(out,doc)
-    parsed = DXFCAD.DXFDocument.read(str(out))
+    parsed = DXFCAD.Drawing.read(str(out))
     assert len(parsed.entities) == 7
     assert "Retain opaque data" in out.read_text()
     by_handle = {DXFCAD.parse_entity(o.DXFData).handle:o.DXFData for o in selected}
@@ -153,7 +153,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     clean = folder/"clean-moved.dxf"
     primitives = [DXFCAD.parse_entity(o.DXFData) for o in selected if o.DXFType in ("LINE","CIRCLE")]
     # Supply valid R2000 tables/blocks and fresh handles to the independent reader.
-    DXFCAD.DXFDocument.empty(4).write(str(clean),added=[e.raw.replace("\n5\n"+e.handle+"\n","\n",1) for e in primitives])
+    DXFCAD.Drawing.empty(4).write(str(clean),added=[e.raw.replace("\n5\n"+e.handle+"\n","\n",1) for e in primitives])
     import Import
     independent = FreeCAD.newDocument("IndependentMove")
     Import.readDXF(str(clean),independent.Name,False)

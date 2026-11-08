@@ -1,4 +1,4 @@
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -19,8 +19,8 @@ int main() {
         check(entity->type() == "CIRCLE" && entity->handle().empty() && entity->layer() == "0");
         const auto circle = entity->geometry().circles.at(0);
         check(circle.center.x == center.x && circle.center.z == 3 && circle.radius == 5);
-        const auto drawing = DXFCAD::DXFDocument::empty(4);
-        const auto restored = DXFCAD::DXFDocument::parse(drawing.serialize({}, {}, {raw,raw}));
+        const auto drawing = DXFCAD::Drawing::empty(4);
+        const auto restored = DXFCAD::Drawing::parse(drawing.serialize({}, {}, {raw,raw}));
         check(restored.entities.size() == 2 && restored.insertionUnits == 4);
         check(!restored.entities[0]->handle().empty() && restored.entities[0]->handle() != restored.entities[1]->handle());
         rejects([&] { DXFCAD::createCircle(center,0); });

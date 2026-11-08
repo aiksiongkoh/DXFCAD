@@ -1,6 +1,6 @@
 #include <Python.h>
-#include <DXFCAD/TextObject.h>
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Native/TextObject.h>
+#include <DXFCAD/Drawing.h>
 #include <Mod/Part/App/Geometry.h>
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -14,7 +14,7 @@
 #include <stdexcept>
 
 namespace DXFCAD {
-PROPERTY_SOURCE(DXFCAD::TextObject, DXFCAD::DXFEntityObject)
+PROPERTY_SOURCE(DXFCAD::TextObject, DXFCAD::EntityObject)
 PROPERTY_SOURCE(DXFCAD::MTextObject, DXFCAD::TextObject)
 PROPERTY_SOURCE(DXFCAD::DimensionObject, DXFCAD::TextObject)
 PROPERTY_SOURCE(DXFCAD::InsertObject, DXFCAD::TextObject)
@@ -51,7 +51,7 @@ short DimensionObject::mustExecute() const
 }
 
 TextObject::TextObject(const char* type, const char* initialData)
-    : DXFEntityObject(type, initialData)
+    : EntityObject(type, initialData)
 {
     ADD_PROPERTY_TYPE(TextFont, (""), "Display", App::Prop_None,
                       "Substitute font file used to derive text outlines");
@@ -59,7 +59,7 @@ TextObject::TextObject(const char* type, const char* initialData)
 
 short TextObject::mustExecute() const
 {
-    return TextFont.isTouched() ? 1 : DXFEntityObject::mustExecute();
+    return TextFont.isTouched() ? 1 : EntityObject::mustExecute();
 }
 
 TopoDS_Shape TextObject::buildShape(const DXFEntity& entity) const
@@ -70,6 +70,7 @@ TopoDS_Shape TextObject::buildShape(const DXFEntity& entity) const
     builder.MakeCompound(result);
     bool hasShape = false;
     for (const auto& part : entity.blockParts()) {
+        if (!part.visible) continue;
         const auto source=TextObject::buildShape(*part.entity);
         if (source.IsNull()) continue;
         gp_GTrsf transform;
@@ -82,7 +83,7 @@ TopoDS_Shape TextObject::buildShape(const DXFEntity& entity) const
         builder.Add(result,operation.Shape()); hasShape=true;
     }
     if (!geometry.segments.empty() || !geometry.circles.empty() || !geometry.faces.empty()) {
-        const auto primitives = DXFEntityObject::buildShape(entity);
+        const auto primitives = EntityObject::buildShape(entity);
         if (!primitives.IsNull()) { builder.Add(result, primitives); hasShape = true; }
     }
     auto texts = geometry.texts;

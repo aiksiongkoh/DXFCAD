@@ -8,7 +8,7 @@ from pathlib import Path
 from pivy import coin
 import json
 import DXFCAD
-from dxfcad_objects import DXFObjectProxy, DXFViewProvider
+from dxfcad_objects import EntityProxy, EntityViewProvider
 
 profile = Path(FreeCAD.getUserAppDataDir())
 assert str(profile) in DXFCAD.__file__
@@ -16,8 +16,8 @@ doc = FreeCAD.newDocument("CircleSelection")
 raw = "0\nCIRCLE\n10\n1\n20\n2\n30\n3\n40\n2\n210\n0\n220\n1\n230\n0\n"
 obj = DXFCAD.create_feature(doc, DXFCAD.parse_entity(raw), "")
 if obj.TypeId == "Part::FeaturePython":
-    DXFObjectProxy(obj)
-DXFViewProvider(obj.ViewObject, (0.2, 0.2, 0.2))
+    EntityProxy(obj)
+EntityViewProvider(obj.ViewObject, (0.2, 0.2, 0.2))
 doc.recompute()
 proxy = obj.ViewObject.Proxy
 assert proxy._center_switch.whichChild.getValue() == coin.SO_SWITCH_NONE
@@ -30,8 +30,8 @@ assert (FreeCAD.Vector(*center) - FreeCAD.Vector(-1, 3, 2)).Length < 1e-7
 assert obj.DXFData == raw and obj.Shape.exportBrepToString() == before
 other = DXFCAD.create_feature(doc, DXFCAD.parse_entity(raw), "")
 if other.TypeId == "Part::FeaturePython":
-    DXFObjectProxy(other)
-DXFViewProvider(other.ViewObject, (0.2, 0.2, 0.2))
+    EntityProxy(other)
+EntityViewProvider(other.ViewObject, (0.2, 0.2, 0.2))
 doc.recompute()
 FreeCADGui.Selection.addSelection(other)
 assert proxy._center_switch.whichChild.getValue() == coin.SO_SWITCH_ALL

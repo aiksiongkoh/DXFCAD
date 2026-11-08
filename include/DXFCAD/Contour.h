@@ -1,5 +1,6 @@
 #pragma once
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/ChangeSet.h>
+#include <DXFCAD/Drawing.h>
 
 namespace DXFCAD {
 // Distances follow the native traversal, in drawing units. Topology edits
@@ -18,11 +19,11 @@ public:
         const std::vector<std::string>& boundaries, double pickDistance);
 };
 
-// Independent domain plan. Selection indices address live records, including
+// Validated contour changes. Selection indices address live records, including
 // new entities whose source slot is -1. Construction validates the whole result.
-class ContourEditPlan {
+class ContourChangeSet : public ChangeSet {
 public:
-    ContourEditPlan(const DXFDocument& source,
+    ContourChangeSet(const Drawing& source,
                     const std::vector<std::pair<int,std::string>>& live,
                     const std::vector<std::size_t>& selected,
                     const std::vector<std::string>& results, bool preserveFirst = true);

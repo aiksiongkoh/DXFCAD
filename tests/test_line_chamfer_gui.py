@@ -20,10 +20,10 @@ first+="1001\nChamferTest\n1000\nkeep source metadata\n"
 second=DXFCAD.create_line(V(10,0,3),V(10,10,3))
 short=DXFCAD.create_line(V(20,0,3),V(25,0,3))
 apart=DXFCAD.create_line(V(30,5,3),V(30,10,3))
-tilted=DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,20),DXFCAD.LWPolylineVertex(10,20),DXFCAD.LWPolylineVertex(10,30)],False,0,7,DXFCAD.ExtrusionDirection(1,2,3)).world_vertices()
+tilted=DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(0,20),DXFCAD.LWPolylineVertex(10,20),DXFCAD.LWPolylineVertex(10,30)],False,0,7,DXFCAD.Vector3D(1,2,3)).world_vertices()
 tilt_a=DXFCAD.create_line(tilted[0],tilted[1])
 tilt_b=DXFCAD.create_line(tilted[1],tilted[2])
-source=DXFCAD.DXFDocument.empty(4).serialize(added=[first,second,short,apart,tilt_a,tilt_b])
+source=DXFCAD.Drawing.empty(4).serialize(added=[first,second,short,apart,tilt_a,tilt_b])
 
 def state(doc):
     return {o.Name:o.DXFData for o in doc.Objects if "DXFData" in o.PropertiesList}
@@ -105,7 +105,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert abs(DXFCAD.parse_entity(lines[3].DXFData).snap_points()[0].position.y-3)<1e-7
     output=folder/"chamfered.dxf"
     export_dxf(output,doc)
-    exported=DXFCAD.DXFDocument.read(str(output))
+    exported=DXFCAD.Drawing.read(str(output))
     assert len(exported.entities)==9 and all(e.type=="LINE" for e in exported.entities)
     assert [e.handle for e in exported.entities[:6]]==original_handles and len({e.handle for e in exported.entities})==9
     import Import
@@ -122,7 +122,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     doc=FreeCAD.openDocument(str(saved))
     assert state(doc)==expected and all(doc.getObject(name).Shape.isValid() for name in connectors)
     export_dxf(folder/"restored.dxf",doc)
-    assert len(DXFCAD.DXFDocument.read(str(folder/"restored.dxf")).entities)==9
+    assert len(DXFCAD.Drawing.read(str(folder/"restored.dxf")).entities)==9
     FreeCAD.closeDocument(doc.Name)
     # The shared exporter currently permits new entities only in R2000+.
     # Preflight must reject an older source before editing either source line.
@@ -141,7 +141,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     other=doc.addObject("App::DocumentObjectGroup","OtherDXFDrawing")
     other.addProperty("App::PropertyString","DXFSourceData","DXF")
     import base64
-    other.DXFSourceData=base64.b64encode(DXFCAD.DXFDocument.empty(4).serialize_bytes()).decode("ascii")
+    other.DXFSourceData=base64.b64encode(DXFCAD.Drawing.empty(4).serialize_bytes()).decode("ascii")
     alien=dxfcad_edit.create_line(doc,V(10,0,3),V(10,10,3),root=other)
     previous=state(doc)
     try:

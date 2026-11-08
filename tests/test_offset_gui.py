@@ -61,7 +61,7 @@ assert after=={o.Name:o.DXFData for o in objects}
 with tempfile.TemporaryDirectory(dir=profile) as temp:
     out=Path(temp)/"offset.dxf"
     export_dxf(out,doc)
-    parsed=DXFCAD.DXFDocument.read(str(out))
+    parsed=DXFCAD.Drawing.read(str(out))
     assert len(parsed.entities)==8 and len(set(e.handle for e in parsed.entities))==8
     saved=Path(temp)/"offset.FCStd"
     doc.saveAs(str(saved))

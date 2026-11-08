@@ -129,7 +129,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert abs(panel.result[0].Shape.Length-before)<1e-7
     output=folder/"cleanup-out.dxf"
     export_dxf(output,doc)
-    parsed=DXFCAD.DXFDocument.read(str(output))
+    parsed=DXFCAD.Drawing.read(str(output))
     assert not parsed.warnings
     assert len({e.handle for e in parsed.entities})==len(parsed.entities)
     assert all(o.Shape.isValid() for o in doc.Objects if "DXFData" in o.PropertiesList)
@@ -141,7 +141,7 @@ print("Contour commands, mouse picking, preview/cancel, topology changes, undo/r
 # Interior-trim preview retains dependencies in a separate boundary drawing.
 doc=FreeCAD.newDocument("ContourDependencies")
 target=create_line(doc,DXFCAD.Vector3D(),DXFCAD.Vector3D(10,0,0))
-boundary_root=DXFCAD.create_drawing(doc,DXFCAD.DXFDocument.empty(4))
+boundary_root=DXFCAD.create_drawing(doc,DXFCAD.Drawing.empty(4))
 a=create_line(doc,DXFCAD.Vector3D(3,-5,0),DXFCAD.Vector3D(3,5,0),boundary_root)
 b=create_line(doc,DXFCAD.Vector3D(7,-5,0),DXFCAD.Vector3D(7,5,0),boundary_root)
 panel=show_contour_tool("trim",[a,target,b])

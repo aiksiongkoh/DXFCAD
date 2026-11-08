@@ -1,5 +1,5 @@
-#include <DXFCAD/DXFDocument.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/Drawing.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -17,7 +17,7 @@ int main()
 {
     try {
         using namespace DXFCAD;
-        const LWPolylineEntity p({{0,0,1,1,2,true},{2,0}}, false, 3, 4, {0,2,0});
+        const DXFLWPolyline p({{0,0,1,1,2,true},{2,0}}, false, 3, 4, {0,2,0});
         const auto moved = p.moved({1,2,3});
         const auto a = p.worldSegments()[0], b = moved.worldSegments()[0];
         near(b.start.x-a.start.x, 1); near(b.start.y-a.start.y, 2); near(b.start.z-a.start.z, 3);
@@ -48,9 +48,9 @@ int main()
         check(picked.elevation() == 4 && picked.extrusion().y == 2);
         const auto world = picked.worldVertices()[0];
         near(world.x,-4); near(world.y,4); near(world.z,8);
-        for (auto extrusion : {ExtrusionDirection{0,0,1}, ExtrusionDirection{0,0,-2}, ExtrusionDirection{1,2,3}}) {
-            const LWPolylineEntity tilted({{0,0},{2,0}}, false, 0, 7, extrusion);
-            const OCSFrame frame(extrusion);
+        for (auto extrusion : {Vector3D{0,0,1}, Vector3D{0,0,-2}, Vector3D{1,2,3}}) {
+            const DXFLWPolyline tilted({{0,0},{2,0}}, false, 0, 7, extrusion);
+            const CartesianFrame frame(extrusion);
             const auto target = frame.toWorld({4,-5},7), normal = frame.normal();
             const Vector3D start{target.x+100*normal.x,target.y+100*normal.y,target.z+100*normal.z};
             const Vector3D end{target.x-100*normal.x,target.y-100*normal.y,target.z-100*normal.z};
@@ -58,7 +58,7 @@ int main()
             near(result.vertices()[0].x,4); near(result.vertices()[0].y,-5);
             check(tilted.vertices()[0].x == 0);
         }
-        const LWPolylineEntity straight({{0,0,0,1,2,true},{2,0}},false,3,7);
+        const DXFLWPolyline straight({{0,0,0,1,2,true},{2,0}},false,3,7);
         const auto snapped = straight.withVertexAtVertex(0,1);
         check(snapped.vertices()[0].x == 2 && snapped.vertices()[0].startWidth == 1);
         rejects([&] { p.withVertexAtVertex(0,1); }); // coincident bulged endpoints
@@ -116,22 +116,22 @@ int main()
         const std::string blocks = "0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n2\nUnmodeled\n0\nENDBLK\n0\nENDSEC\n";
         const std::string drawing = header+blocks+"0\nSECTION\n2\nENTITIES\n"+raw+unknown+
             "0\nCIRCLE\n5\nB1\n10\n0\n20\n0\n40\n-1\n0\nENDSEC\n0\nSECTION\n2\nOBJECTS\n0\nDICTIONARY\n5\nB2\n0\nENDSEC\n0\nEOF\n";
-        const auto doc = DXFDocument::parse(drawing);
+        const auto doc = Drawing::parse(drawing);
         check(doc.entities.size() == 1 && doc.warnings.size() == 2);
         check(doc.serialize() == drawing);
         const auto exported = doc.serialize({{0, edit}}, {}, {created});
         check(exported.find(unknown) != std::string::npos && exported.find(blocks) != std::string::npos);
         check(exported.find("40\n-1\n") != std::string::npos);
-        const auto reread = DXFDocument::parse(exported);
+        const auto reread = Drawing::parse(exported);
         check(reread.entities.size() == 2 && reread.insertionUnits == 1);
         check(reread.entities[1]->handle() == "C1");
         check(reread.entities[0]->raw() == edit);
-        check(DXFDocument::parse(doc.serialize({}, {0})).entities.empty());
+        check(Drawing::parse(doc.serialize({}, {0})).entities.empty());
         // Preservation alone must not require allocating another handle.
-        const auto fullHandles = DXFDocument::parse("0\nSECTION\n2\nENTITIES\n0\nSPLINE\n5\nFFFFFFFFFFFFFFFF\n0\nENDSEC\n0\nEOF\n");
+        const auto fullHandles = Drawing::parse("0\nSECTION\n2\nENTITIES\n0\nSPLINE\n5\nFFFFFFFFFFFFFFFF\n0\nENDSEC\n0\nEOF\n");
         check(fullHandles.serialize().find("FFFFFFFFFFFFFFFF") != std::string::npos);
         rejects([&] { fullHandles.serialize({}, {}, {created}); });
-        const auto legacy = DXFDocument::parse("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n");
+        const auto legacy = Drawing::parse("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n");
         check(!legacy.serialize().empty());
         rejects([&] { legacy.serialize({}, {}, {created}); });
         rejects([&] { doc.serialize({{1,edit}}); });
@@ -140,7 +140,7 @@ int main()
         rejects([&] { doc.serialize({}, {}, {raw}); });
         rejects([&] { doc.serialize({}, {}, {createLWPolyline(p, "Absent")}); });
         rejects([&] { parseEntity(created+unknown); });
-        const auto fresh = DXFDocument::parse(DXFDocument::empty(4).serialize({}, {}, {created}));
+        const auto fresh = Drawing::parse(Drawing::empty(4).serialize({}, {}, {created}));
         check(fresh.entities.size() == 1 && fresh.insertionUnits == 4);
         std::cout << "LWPolyline editing, transforms, metadata, and drawing round trips passed.\n";
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

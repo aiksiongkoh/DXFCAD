@@ -1,6 +1,6 @@
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Drawing.h>
 #include <DXFCAD/Drafting.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <DXFCAD/SnapGeometry.h>
 #include <algorithm>
 #include <cmath>
@@ -15,17 +15,18 @@ std::string key(std::string name) {
         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
     return name;
 }
-using Blocks = std::map<std::string, std::vector<DXFRecord>>;
+using Blocks = std::map<std::string, std::vector<GroupSequence>>;
 Blocks readBlocks(const std::string& context) {
     Blocks blocks;
-    std::vector<DXFRecord> records;
+    std::vector<GroupSequence> records;
     for (const auto& g : readDXFGroups(context).groups) {
         if (g.first == 0) records.emplace_back();
         if (records.empty()) throw std::invalid_argument("Invalid INSERT block context");
         records.back().groups.push_back(g);
     }
-    std::vector<DXFRecord> block;
+    std::vector<GroupSequence> block;
     for (const auto& r : records) {
+        if (block.empty() && r.value(0)=="LAYER") continue;
         if (r.value(0) == "BLOCK") {
             if (!block.empty()) throw std::invalid_argument("Unterminated BLOCK");
             block.push_back(r);
@@ -43,7 +44,18 @@ Blocks readBlocks(const std::string& context) {
     if (!block.empty()) throw std::invalid_argument("Unterminated BLOCK");
     return blocks;
 }
-Vector3D point(const DXFRecord& r) {
+std::vector<GroupSequence> readLayers(const std::string& context) {
+    std::vector<GroupSequence> result;
+    const auto data=readDXFGroups(context);
+    for (std::size_t i=0;i<data.groups.size();++i) if (data.groups[i]==std::make_pair(0,std::string("LAYER"))) {
+        GroupSequence record;
+        record.groups.push_back(data.groups[i]);
+        while (i+1<data.groups.size() && data.groups[i+1].first!=0) record.groups.push_back(data.groups[++i]);
+        result.push_back(std::move(record));
+    }
+    return result;
+}
+Vector3D point(const GroupSequence& r) {
     return {r.number(10),r.number(20),r.number(30)};
 }
 BlockPart identity() { return {{},{0,0,0},{1,0,0},{0,1,0},{0,0,1}}; }
@@ -54,9 +66,9 @@ Vector3D vector(const BlockPart& t, Vector3D p) {
 BlockPart compose(const BlockPart& a,const BlockPart& b) {
     return {b.entity,a.transformPoint(b.origin),vector(a,b.xAxis),vector(a,b.yAxis),vector(a,b.zAxis)};
 }
-class InsertEntity final : public DXFEntity {
+class DXFInsert final : public DXFEntity {
 public:
-    InsertEntity(DXFRecord record, const std::string& context) : DXFEntity(std::move(record)) {
+    DXFInsert(GroupSequence record, const std::string& context) : DXFEntity(std::move(record)) {
         if (context.empty()) return; // Metadata-only parsing; geometry requires dependencies.
         const auto blocks=readBlocks(context);
         std::set<std::string> selected, active;
@@ -73,19 +85,42 @@ public:
             active.erase(name); selected.insert(name);
         };
         visit(nativeEntityFields(record_).value(2));
+        std::set<std::string> usedLayers{key(layer()),"0"};
+        for (const auto& name : selected) for (const auto& r : blocks.at(name))
+            usedLayers.insert(key(nativeEntityFields(r).value(8,"0")));
+        for (const auto& r : readLayers(context)) if (usedLayers.count(key(nativeEntityFields(r).value(2))))
+            context_+=r.raw();
         for (const auto& name : selected) for (const auto& r : blocks.at(name)) context_+=r.raw();
     }
     std::string context() const override { return context_; }
     std::string translated(const Vector3D& offset) const override { return translatedPoints(offset,{10},true); }
     std::vector<BlockPart> blockParts() const override {
         const auto blocks=readBlocks(context_);
-        const auto root=nativeEntityFields(record_);
+        std::map<std::string,DXFLayer> layers;
+        for (const auto& r : readLayers(context_)) {
+            const auto f=nativeEntityFields(r);
+            const int color=f.integer(62,7);
+            layers[key(f.value(2))]=DXFLayer{f.value(2),std::abs(color),f.integer(420,-1),color>=0 && !(f.integer(70)&1)};
+        }
+        auto layerStyle=[&](const std::string& name) {
+            const auto found=layers.find(key(name));
+            return found==layers.end() ? DXFLayer{name} : found->second;
+        };
+        auto colorFor=[&](const GroupSequence& fields,const std::string& name,const std::vector<double>& inherited) {
+            if (fields.integer(62,256)==0 && fields.integer(420,-1)<0) return inherited;
+            return entityColor(*parseEntity(fields.raw()),layerStyle(name));
+        };
         std::vector<BlockPart> result;
         std::size_t expanded=0;
-        std::function<void(const DXFRecord&,const BlockPart&,std::size_t)> expand;
-        expand = [&](const DXFRecord& raw,const BlockPart& parent,std::size_t depth) {
+        std::function<void(const GroupSequence&,const BlockPart&,std::size_t,const std::string&,const std::vector<double>&,bool)> expand;
+        expand = [&](const GroupSequence& raw,const BlockPart& parent,std::size_t depth,
+                     const std::string& inheritedLayer,const std::vector<double>& inheritedColor,bool parentVisible) {
             if (++expanded > 10000 || depth > 32) throw std::invalid_argument("INSERT expansion limit exceeded");
             const auto fields=nativeEntityFields(raw);
+            const auto currentLayer=fields.value(8,"0")=="0" ? inheritedLayer : fields.value(8);
+            const auto currentColor=colorFor(fields,currentLayer,inheritedColor);
+            const bool currentVisible=parentVisible && (depth==0 || (fields.integer(60)==0 &&
+                (key(currentLayer)==key(layer()) || layerStyle(currentLayer).visible)));
             if (fields.value(10).empty() || fields.value(20).empty())
                 throw std::invalid_argument("INSERT point lacks X/Y");
             if (fields.integer(66)) throw std::invalid_argument("INSERT attributes are not supported yet");
@@ -103,7 +138,7 @@ public:
                 throw std::invalid_argument("Invalid or excessive INSERT array size");
             const double angle=std::fmod(fields.number(50),360)*std::acos(-1.0)/180;
             const double c=std::cos(angle), s=std::sin(angle);
-            const OCSFrame frame({fields.number(210),fields.number(220),fields.number(230,1)});
+            const CartesianFrame frame({fields.number(210),fields.number(220),fields.number(230,1)});
             const auto x=frame.toWorld({c,s},0), y=frame.toWorld({-s,c},0), z=frame.normal();
             BlockPart local{{},{},{x.x*sx,x.y*sx,x.z*sx},{y.x*sy,y.y*sy,y.z*sy},{z.x*sz,z.y*sz,z.z*sz}};
             const auto b=vector(local,base);
@@ -115,25 +150,23 @@ public:
                 for (std::size_t i=1;i+1<block.size();++i) {
                     const auto child=nativeEntityFields(block[i]);
                     if (child.integer(60)) continue;
-                    if (child.value(8,"0")!="0" && key(child.value(8))!=key(layer()))
-                        throw std::invalid_argument("BLOCK child layers must inherit the INSERT layer in this version");
-                    const int color=child.integer(62,256);
-                    if ((color!=0 && color!=256) || child.integer(420,-1)>=0)
-                        throw std::invalid_argument("BLOCK child colors must be BYBLOCK or BYLAYER in this version");
-                    if (color==256 && (root.integer(62,256)!=256 || root.integer(420,-1)>=0))
-                        throw std::invalid_argument("BYLAYER block children require a BYLAYER INSERT color in this version");
-                    if (child.value(0)=="INSERT") expand(block[i],transform,depth+1);
+                    const auto childLayer=child.value(8,"0")=="0" ? currentLayer : child.value(8);
+                    const bool visible=currentVisible && (key(childLayer)==key(layer()) || layerStyle(childLayer).visible);
+                    if (child.value(0)=="INSERT") expand(block[i],transform,depth+1,currentLayer,currentColor,currentVisible);
                     else {
                         if (++expanded > 10000) throw std::invalid_argument("INSERT expansion limit exceeded");
                         auto part=transform;
                         part.entity=parseEntity(block[i].raw());
-                        part.entity->geometry();
+                        part.layer=childLayer;
+                        part.color=colorFor(child,childLayer,currentColor);
+                        part.visible=visible;
+                        if (visible) part.entity->geometry();
                         result.push_back(std::move(part));
                     }
                 }
             }
         };
-        expand(record_,identity(),0);
+        expand(record_,identity(),0,layer(),entityColor(*this,layerStyle(layer())),true);
         return result;
     }
     EntityGeometry geometry() const override {
@@ -141,15 +174,16 @@ public:
         // pretending nonuniformly scaled circles are still circles.
         EntityGeometry result;
         for (const auto& part : blockParts()) {
+            if (!part.visible) continue;
             for (const auto& p : SnapGeometry(*part.entity).boundPoints()) result.bounds.push_back(part.transformPoint(p));
         }
         return result;
     }
-    std::vector<DXFSnapPoint> snapPoints() const override {
+    std::vector<SnapPoint> snapPoints() const override {
         const auto f=nativeEntityFields(record_);
-        const OCSFrame frame({f.number(210),f.number(220),f.number(230,1)});
-        std::vector<DXFSnapPoint> result{{frame.toWorld({f.number(10),f.number(20)},f.number(30)),"insertion"}};
-        for (const auto& part : blockParts()) for (const auto& snap : part.entity->snapPoints())
+        const CartesianFrame frame({f.number(210),f.number(220),f.number(230,1)});
+        std::vector<SnapPoint> result{{frame.toWorld({f.number(10),f.number(20)},f.number(30)),"insertion"}};
+        for (const auto& part : blockParts()) if (part.visible) for (const auto& snap : part.entity->snapPoints())
             result.push_back({part.transformPoint(snap.position),snap.kind});
         return result;
     }
@@ -165,7 +199,7 @@ Vector3D BlockPart::transformPoint(const Vector3D& p) const {
         throw std::overflow_error("INSERT transform exceeds finite range");
     return q;
 }
-std::shared_ptr<DXFEntity> makeInsertEntity(DXFRecord record,const std::string& context) {
-    return std::make_shared<InsertEntity>(std::move(record),context);
+std::shared_ptr<DXFEntity> makeInsertEntity(GroupSequence record,const std::string& context) {
+    return std::make_shared<DXFInsert>(std::move(record),context);
 }
 }

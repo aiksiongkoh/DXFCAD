@@ -20,7 +20,7 @@ old_raw=[line.DXFData,circle.DXFData]
 old_color=tuple(line.ViewObject.LineColor)
 old_group=next(g for g in root.Group if line in g.Group)
 def source():
-    return DXFCAD.DXFDocument.parse(base64.b64decode(root.DXFSourceData,validate=True))
+    return DXFCAD.Drawing.parse(base64.b64decode(root.DXFSourceData,validate=True))
 def rgb(obj,color):
     return all(abs(a-b)<1e-6 for a,b in zip(obj.ViewObject.LineColor,color))
 def undo():
@@ -101,7 +101,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     folder=Path(temp)
     out=folder/"properties.dxf"
     export_dxf(out,doc)
-    parsed=DXFCAD.DXFDocument.read(str(out))
+    parsed=DXFCAD.Drawing.read(str(out))
     assert len(parsed.entities)==2 and parsed.layers["Walls"].color==3 and parsed.layers["Walls"].visible
     assert all(e.layer=="Walls" for e in parsed.entities)
     assert not parsed.entities[0].visible and parsed.entities[1].visible

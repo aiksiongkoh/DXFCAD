@@ -96,7 +96,7 @@ class OffsetPlanTests(unittest.TestCase):
         with self.assertRaises(ValueError): plan.apply()
 
     def test_multiple_drawings_duplicates_and_foreign_document(self):
-        root = DXFCAD.create_drawing(self.doc, DXFCAD.DXFDocument.empty(4))
+        root = DXFCAD.create_drawing(self.doc, DXFCAD.Drawing.empty(4))
         other = create_line(self.doc, DXFCAD.Vector3D(), DXFCAD.Vector3D(2, 0, 0), root)
         for copies in (True, False):
             plan = DXFCAD.prepare_offset([self.objects[0], other, other], 1, copies)

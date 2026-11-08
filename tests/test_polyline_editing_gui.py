@@ -81,7 +81,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     obj = next(o for o in doc.Objects if "DXFData" in o.PropertiesList)
     assert obj.DXFData == edited
     export_dxf(output, doc)
-    parsed = DXFCAD.DXFDocument.read(str(output))
+    parsed = DXFCAD.Drawing.read(str(output))
     assert len(parsed.entities) == 1
     assert DXFCAD.read_lwpolyline(parsed.entities[0].raw).vertices[0].x == 3
     # Restored view provider still opens the editor.

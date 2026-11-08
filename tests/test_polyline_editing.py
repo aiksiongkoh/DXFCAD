@@ -122,7 +122,7 @@ class EditingTests(unittest.TestCase):
             self.assertTrue(all(doc.getObject(n) is not None for n in names))
             output = Path(temp)/"copies.dxf"
             export_dxf(output,doc)
-            parsed = DXFCAD.DXFDocument.read(str(output))
+            parsed = DXFCAD.Drawing.read(str(output))
             self.assertEqual(len(parsed.entities),12)
             self.assertEqual(len(set(e.handle for e in parsed.entities)),12)
             self.assertIn(OPAQUE,output.read_text())
@@ -179,7 +179,7 @@ class EditingTests(unittest.TestCase):
             self.assertEqual([o.DXFData for o in selected],after)
             output = Path(temp)/"moved.dxf"
             export_dxf(output,doc)
-            parsed = DXFCAD.DXFDocument.read(str(output))
+            parsed = DXFCAD.Drawing.read(str(output))
             self.assertEqual(len(parsed.entities),3)
             self.assertIn(OPAQUE,output.read_text())
             self.assertEqual(parsed.entities[0].handle,"AB")
@@ -217,7 +217,7 @@ class EditingTests(unittest.TestCase):
                     create_circle(doc,DXFCAD.Vector3D(0,0,0),radius)
             output = Path(temp)/"out.dxf"
             export_dxf(output,doc)
-            restored = DXFCAD.DXFDocument.read(str(output))
+            restored = DXFCAD.Drawing.read(str(output))
             self.assertEqual(restored.insertion_units,1)
             self.assertEqual(restored.entities[-1].type,"CIRCLE")
             self.assertIn("\n40\n2.5\n",restored.entities[-1].raw)
@@ -263,7 +263,7 @@ class EditingTests(unittest.TestCase):
             self.assertEqual(doc.getObject(name).DXFData,raw)
             output = Path(temp)/"line.dxf"
             export_dxf(output,doc)
-            parsed = DXFCAD.DXFDocument.read(str(output))
+            parsed = DXFCAD.Drawing.read(str(output))
             self.assertEqual(len(parsed.entities),2)
             self.assertEqual(parsed.entities[-1].type,"LINE")
             self.assertIn(OPAQUE,output.read_text())
@@ -289,7 +289,7 @@ class EditingTests(unittest.TestCase):
             doc.redo()
             doc.recompute()
             self.assertEqual(obj.DXFData, native)
-            new = create_polyline(doc, DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(5,0)]))
+            new = create_polyline(doc, DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(5,0)]))
             self.assertEqual(new.DXFSourceIndex, -1)
             saved = Path(temp) / "saved.FCStd"
             doc.saveAs(str(saved))
@@ -302,7 +302,7 @@ class EditingTests(unittest.TestCase):
             output = destination.read_text(encoding="utf-8")
             self.assertIn(OPAQUE, output)
             self.assertIn(BLOCKS, output)
-            parsed = DXFCAD.DXFDocument.read(str(destination))
+            parsed = DXFCAD.Drawing.read(str(destination))
             self.assertEqual(len(parsed.entities), 2)
             self.assertEqual(parsed.insertion_units, 1)
             self.assertEqual(parsed.entities[0].raw, native)
@@ -314,7 +314,7 @@ class EditingTests(unittest.TestCase):
 
     def test_create_undo_and_joined_widths(self):
         doc = FreeCAD.newDocument("Created")
-        model = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0), DXFCAD.LWPolylineVertex(10,0),
+        model = DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(0,0), DXFCAD.LWPolylineVertex(10,0),
                                   DXFCAD.LWPolylineVertex(10,10)], constant_width=2)
         obj = create_polyline(doc, model)
         self.assertTrue(obj.Shape.isValid())
@@ -324,14 +324,14 @@ class EditingTests(unittest.TestCase):
         doc.redo()
         doc.recompute()
         obj = next(o for o in doc.Objects if "DXFData" in o.PropertiesList)
-        square = model.inserted_vertex(3, DXFCAD.LWPolylineVertex(0,10)).with_properties(True,2,0,DXFCAD.ExtrusionDirection())
+        square = model.inserted_vertex(3, DXFCAD.LWPolylineVertex(0,10)).with_properties(True,2,0,DXFCAD.Vector3D(0,0,1))
         apply_polyline(obj, square, [-1,-1,-1,-1])
         self.assertTrue(obj.Shape.isValid())
         self.assertAlmostEqual(obj.Shape.Area, 80, places=7)
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "new.dxf"
             export_dxf(path, doc)
-            parsed = DXFCAD.DXFDocument.read(str(path))
+            parsed = DXFCAD.Drawing.read(str(path))
             self.assertEqual(parsed.insertion_units, 4)
             self.assertTrue(DXFCAD.read_lwpolyline(parsed.entities[0].raw).closed)
             # Independent interoperability check: use FreeCAD's own C++ DXF
@@ -346,7 +346,7 @@ class EditingTests(unittest.TestCase):
 
     def test_failed_edits_and_export_leave_data_untouched(self):
         doc = FreeCAD.newDocument("Invalid")
-        p = DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(0,0,1),DXFCAD.LWPolylineVertex(2,0)])
+        p = DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(0,0,1),DXFCAD.LWPolylineVertex(2,0)])
         obj = create_polyline(doc, p)
         original = obj.DXFData
         with self.assertRaises(ValueError):
@@ -355,7 +355,7 @@ class EditingTests(unittest.TestCase):
         # Centerline data is valid, but width display cannot meet its bounded
         # subdivision requirement. The transaction must restore the old shape.
         with self.assertRaises(ValueError):
-            apply_polyline(obj, p.with_properties(False, 1e300, 0, DXFCAD.ExtrusionDirection()))
+            apply_polyline(obj, p.with_properties(False, 1e300, 0, DXFCAD.Vector3D(0,0,1)))
         self.assertEqual(obj.DXFData, original)
         self.assertTrue(obj.Shape.isValid())
         self.assertFalse(obj.DisplayStatus.startswith("Error:"))
@@ -377,7 +377,7 @@ class EditingTests(unittest.TestCase):
         for bulge in (-0.414213562373095, 0.414213562373095):
             for closed in (False, True):
                 with self.subTest(bulge=bulge, closed=closed):
-                    model = DXFCAD.LWPolylineEntity([
+                    model = DXFCAD.DXFLWPolyline([
                         DXFCAD.LWPolylineVertex(0,0,bulge,0.4,0.6),
                         DXFCAD.LWPolylineVertex(2,0,-bulge,0.6,0.4),
                         DXFCAD.LWPolylineVertex(2,2,0,0.4,0.4),
@@ -405,7 +405,7 @@ class EditingTests(unittest.TestCase):
             doc.removeObject(obj.Name)
             destination = Path(temp) / "deleted.dxf"
             export_dxf(destination, doc, first)
-            parsed = DXFCAD.DXFDocument.read(str(destination))
+            parsed = DXFCAD.Drawing.read(str(destination))
             self.assertEqual(len(parsed.entities), 0)
             self.assertIn(OPAQUE, destination.read_text())
 

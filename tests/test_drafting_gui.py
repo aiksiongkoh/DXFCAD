@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     folder=Path(temp)
     out=folder/"extended.dxf"
     export_dxf(out,doc)
-    parsed=DXFCAD.DXFDocument.read(str(out))
+    parsed=DXFCAD.Drawing.read(str(out))
     assert len(parsed.entities)==3
     assert parsed.entities[0].snap_points()[1].position.x==15
     saved=folder/"extended.FCStd"
@@ -119,7 +119,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     folder=Path(temp)
     expected={o.Name:o.DXFData for o in (curve,poly)}
     export_dxf(folder/"curves.dxf",doc)
-    parsed=DXFCAD.DXFDocument.read(str(folder/"curves.dxf"))
+    parsed=DXFCAD.Drawing.read(str(folder/"curves.dxf"))
     assert len(parsed.entities)==4
     trimmed_poly=next(e for e in parsed.entities if e.type=="LWPOLYLINE")
     assert abs(DXFCAD.read_lwpolyline(trimmed_poly.raw).vertices[0].start_width-4)<1e-7
@@ -134,7 +134,7 @@ print("LINE/ARC/curved-polyline trim/extend preview, undo/redo, native attribute
 # Boundary drawing dependencies remain part of the cached preview plan.
 doc=FreeCAD.newDocument("StaleTrimPreview")
 line=create_line(doc,DXFCAD.Vector3D(),DXFCAD.Vector3D(10,0,0))
-boundary_root=DXFCAD.create_drawing(doc,DXFCAD.DXFDocument.empty(4))
+boundary_root=DXFCAD.create_drawing(doc,DXFCAD.Drawing.empty(4))
 cut=create_line(doc,DXFCAD.Vector3D(5,-5,0),DXFCAD.Vector3D(5,5,0),boundary_root)
 panel=show_drafting_tool(TrimTaskPanel,[line,cut])
 panel.preview()

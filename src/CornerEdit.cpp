@@ -5,7 +5,7 @@
 #include <cmath>
 
 namespace DXFCAD {
-CornerEditPlan::CornerEditPlan(const DXFDocument& source,
+CornerChangeSet::CornerChangeSet(const Drawing& source,
     const std::vector<std::pair<int,std::string>>& live,const std::array<std::size_t,2>& selected,
     const std::vector<std::string>& updates,const std::string& connector,const std::string& connectorType)
 {

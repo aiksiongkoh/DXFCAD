@@ -1,6 +1,6 @@
 #include <Python.h>
-#include <DXFCAD/LWPolylineObject.h>
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/Native/LWPolylineObject.h>
+#include <DXFCAD/Drawing.h>
 
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -86,17 +86,17 @@ TopoDS_Shape buildPolylineShape(const DXFEntity& entity, bool showWidths)
 }
 }
 
-PROPERTY_SOURCE(DXFCAD::LWPolylineObject, DXFCAD::DXFEntityObject)
+PROPERTY_SOURCE(DXFCAD::LWPolylineObject, DXFCAD::EntityObject)
 
 LWPolylineObject::LWPolylineObject()
-    : DXFEntityObject("LWPOLYLINE", "0\nLWPOLYLINE\n90\n0\n70\n0\n")
+    : EntityObject("LWPOLYLINE", "0\nLWPOLYLINE\n90\n0\n70\n0\n")
 {
     ADD_PROPERTY_TYPE(ShowWidths, (true), "Display", App::Prop_None, "Display width regions instead of centerlines");
 }
 
 short LWPolylineObject::mustExecute() const
 {
-    return ShowWidths.isTouched() ? 1 : DXFEntityObject::mustExecute();
+    return ShowWidths.isTouched() ? 1 : EntityObject::mustExecute();
 }
 
 TopoDS_Shape LWPolylineObject::buildShape(const DXFEntity& entity) const

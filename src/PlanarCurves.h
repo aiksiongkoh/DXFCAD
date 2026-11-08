@@ -1,6 +1,6 @@
 #pragma once
-#include <DXFCAD/DXFDocument.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/Drawing.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -40,7 +40,7 @@ struct Curve {
 // Project both entities into one plane. No display tessellation participates.
 class Plane {
 public:
-    OCSFrame frame;
+    CartesianFrame frame;
     double elevation;
     Plane(Vector3D normal, Vector3D origin)
         : frame({normal.x,normal.y,normal.z}), elevation(frame.fromWorld(origin).z) {}

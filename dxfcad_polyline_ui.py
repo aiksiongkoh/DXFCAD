@@ -85,7 +85,7 @@ class PolylineTaskPanel:
             model = self.edit_session.polyline
             self._load(model, list(range(len(model.vertices))))
         else:
-            self._load(DXFCAD.LWPolylineEntity([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(10, 0)]), [-1, -1])
+            self._load(DXFCAD.DXFLWPolyline([DXFCAD.LWPolylineVertex(), DXFCAD.LWPolylineVertex(10, 0)]), [-1, -1])
         self._view_update = QtCore.QTimer(self.form)
         self._view_update.setSingleShot(True)
         self._view_update.timeout.connect(self._sync_view)
@@ -171,8 +171,8 @@ class PolylineTaskPanel:
                     raise ValueError(f"Vertex {row + 1}: enter a number in {self.table.horizontalHeaderItem(column).text()}.") from None
             vertices.append(DXFCAD.LWPolylineVertex(*values, self.table.item(row, 5).checkState() == QtCore.Qt.Checked))
             origins.append(int(self.table.item(row, 0).data(QtCore.Qt.UserRole)))
-        model = DXFCAD.LWPolylineEntity(vertices, self.closed.isChecked(), float(self.width.text()),
-                                 float(self.elevation.text()), DXFCAD.ExtrusionDirection(*(float(f.text()) for f in self.extrusion)))
+        model = DXFCAD.DXFLWPolyline(vertices, self.closed.isChecked(), float(self.width.text()),
+                                 float(self.elevation.text()), DXFCAD.Vector3D(*(float(f.text()) for f in self.extrusion)))
         return model, origins
 
     def insert_vertex(self):

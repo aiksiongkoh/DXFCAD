@@ -1,6 +1,8 @@
 #pragma once
 
+#include <DXFCAD/DXFItem.h>
 #include <DXFCAD/LWPolylineGeometry.h>
+#include <DXFCAD/GroupSequence.h>
 #include <functional>
 #include <memory>
 #include <string>
@@ -14,17 +16,11 @@ class DXFEntity;
 struct BlockPart {
     std::shared_ptr<DXFEntity> entity;
     Vector3D origin, xAxis, yAxis, zAxis;
+    std::string layer;
+    std::vector<double> color{1,1,1};
+    // Child visibility relative to the top-level INSERT's own layer group.
+    bool visible = true;
     Vector3D transformPoint(const Vector3D& point) const;
-};
-
-// All entity group codes, including unknown codes and XDATA, remain authoritative.
-class DXFRecord {
-public:
-    std::vector<std::pair<int, std::string>> groups;
-    std::string value(int code, const std::string& fallback = "") const;
-    double number(int code, double fallback = 0) const;
-    int integer(int code, int fallback = 0) const;
-    std::string raw() const;
 };
 
 struct CircleGeometry { Vector3D center; Vector3D normal; double radius; };
@@ -51,20 +47,20 @@ struct EntityGeometry {
     std::vector<std::vector<Vector3D>> faces;
     std::vector<Vector3D> bounds;
 };
-struct DXFSnapPoint {
+struct SnapPoint {
     Vector3D position;
     std::string kind;
 };
 
-class DXFEntity {
+class DXFEntity : public DXFItem {
 public:
-    explicit DXFEntity(DXFRecord record) : record_(std::move(record)) {}
-    virtual ~DXFEntity() = default;
+    explicit DXFEntity(GroupSequence record) : record_(std::move(record)) {}
+    ~DXFEntity() override = default;
     std::string type() const { return record_.value(0); }
     std::string layer() const { return record_.value(8, "0"); }
     std::string handle() const { return record_.value(5); }
     std::string raw() const { return record_.raw(); }
-    const DXFRecord& record() const noexcept { return record_; }
+    const GroupSequence& record() const noexcept { return record_; }
     virtual EntityGeometry geometry() const = 0;
     std::string mirrored(double lineDegrees, const Vector3D& linePoint) const;
     std::string scaled(double factor, const Vector3D& pivot) const;
@@ -73,11 +69,11 @@ public:
     virtual std::string translated(const Vector3D& offset) const;
     virtual std::string context() const { return {}; }
     virtual std::vector<BlockPart> blockParts() const { return {}; }
-    virtual std::vector<DXFSnapPoint> snapPoints() const;
+    virtual std::vector<SnapPoint> snapPoints() const;
     virtual std::vector<LWPolylineWidthRegion> widthRegions(double = 0.0001) const { return {}; }
 protected:
     std::string translatedPoints(const Vector3D& offset, const std::vector<int>& codes, bool ocs) const;
-    DXFRecord record_;
+    GroupSequence record_;
 };
 
 } // namespace DXFCAD

@@ -1,5 +1,5 @@
 #include <DXFCAD/Drafting.h>
-#include <DXFCAD/OCSFrame.h>
+#include <DXFCAD/CartesianFrame.h>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -55,7 +55,7 @@ int main() {
             near(parseEntity(r.first)->geometry().segments[0].start.x,1/std::tan(angle/2));
             near(parseEntity(r.arc)->geometry().segments[0].arc->sweep,std::acos(-1.0)-angle);
         }
-        const OCSFrame frame({1,2,3});
+        const CartesianFrame frame({1,2,3});
         const auto tiltA=createLine(frame.toWorld({0,0},7),frame.toWorld({10,0},7));
         const auto tiltB=createLine(frame.toWorld({10,0},7),frame.toWorld({10,10},7));
         const auto tilted=Drafting::filletLines(tiltA,tiltB,2);
@@ -81,9 +81,9 @@ int main() {
         rejects([&] { Drafting::filletLines(first,createLine({10,0,4},{10,10,4}),2); });
         rejects([&] { Drafting::filletLines(first,createCircle({0,0,0},2),2); });
         rejects([&] { Drafting::filletLines("0\nLINE\n10\n0\n20\n0\n11\n0\n21\n0\n",second,2); });
-        const auto source=DXFDocument::parse(DXFDocument::empty().serialize({}, {}, {first,second}));
+        const auto source=Drawing::parse(Drawing::empty().serialize({}, {}, {first,second}));
         const auto exported=Drafting::filletLines(source.entities[0]->raw(),source.entities[1]->raw(),2);
-        const auto reopened=DXFDocument::parse(source.serialize({{0,exported.first},{1,exported.second}}, {}, {exported.arc}));
+        const auto reopened=Drawing::parse(source.serialize({{0,exported.first},{1,exported.second}}, {}, {exported.arc}));
         check(reopened.entities.size()==3 && reopened.entities[0]->handle()==source.entities[0]->handle()
               && reopened.entities[1]->handle()==source.entities[1]->handle() && reopened.entities[2]->type()=="ARC","Fillet export lost native identities");
         check(reopened.entities[2]->handle()!=reopened.entities[0]->handle() && reopened.entities[2]->handle()!=reopened.entities[1]->handle(),"Fillet ARC handle collision");

@@ -16,7 +16,7 @@ sys.path.insert(0, str(module_directory))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import DXFCAD
 assert Path(DXFCAD.__file__).parent == module_directory
-from dxfcad_objects import DXFObjectProxy
+from dxfcad_objects import EntityProxy
 from dxfcad_import import import_dxf
 from dxfcad_import import default_text_font
 from dxfcad_export import export_dxf
@@ -134,7 +134,7 @@ class ImportTests(unittest.TestCase):
         def feature(record):
             obj = DXFCAD.create_feature(doc, DXFCAD.parse_entity(record), font)
             if obj.TypeId == "Part::FeaturePython":
-                DXFObjectProxy(obj)
+                EntityProxy(obj)
             doc.recompute()
             self.assertFalse(obj.Shape.isNull(), obj.DisplayStatus)
             self.assertTrue(obj.Shape.isValid(), obj.DisplayStatus)
@@ -179,7 +179,7 @@ class ImportTests(unittest.TestCase):
             self.assertEqual(text.DXFData, record)
             output = Path(temp)/"exported.dxf"
             export_dxf(output, restored)
-            self.assertEqual(output.read_bytes(), DXFCAD.DXFDocument.parse(drawing).serialize_bytes())
+            self.assertEqual(output.read_bytes(), DXFCAD.Drawing.parse(drawing).serialize_bytes())
 
     def test_shapes_and_restore_from_native_records(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -240,7 +240,7 @@ class ImportTests(unittest.TestCase):
                    f"40\n{start_width}\n41\n{end_width}\n10\n0\n20\n-1\n")
             obj = DXFCAD.create_feature(doc, DXFCAD.parse_entity(raw), "")
             if obj.TypeId == "Part::FeaturePython":
-                DXFObjectProxy(obj)
+                EntityProxy(obj)
             doc.recompute()
             self.assertFalse(obj.DisplayStatus.startswith("Error:"), obj.DisplayStatus)
             self.assertTrue(obj.Shape.isValid())
@@ -253,7 +253,7 @@ class ImportTests(unittest.TestCase):
                             ("DisplayStatus", ""), ("TextFont", "")]:
             legacy.addProperty("App::PropertyString", name)
             setattr(legacy, name, value)
-        DXFObjectProxy(legacy)
+        EntityProxy(legacy)
         legacy.Proxy.onDocumentRestored(legacy)
         self.assertTrue(legacy.ShowWidths)
         doc.recompute()

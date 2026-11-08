@@ -154,7 +154,7 @@ assert originals=={name:doc.getObject(name).DXFData for name in originals}
 with tempfile.TemporaryDirectory(dir=FreeCAD.getUserAppDataDir()) as temp:
     out=Path(temp)/"snapped.dxf"
     export_dxf(out,doc)
-    parsed=DXFCAD.DXFDocument.read(str(out))
+    parsed=DXFCAD.Drawing.read(str(out))
     assert len(parsed.entities)==len(originals)+1
     assert any(e.type=="LINE" and abs(e.snap_points()[0].position.x-3)<1e-7 and abs(e.snap_points()[1].position.y+10)<1e-7 for e in parsed.entities)
 index=cache[_INDEX]

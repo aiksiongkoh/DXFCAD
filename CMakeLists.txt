@@ -4,13 +4,22 @@ project(DXFCAD VERSION 0.1.0 LANGUAGES CXX)
 
 # The domain layer deliberately has no GUI or downstream workbench dependency.
 add_library(DXFCADDomain STATIC
-    src/LWPolylineEntity.cpp
-    src/LWPolylineEntityGeometry.cpp
-    src/LWPolylineEntityEditing.cpp
-    src/LWPolylineEntityWorldGeometry.cpp
-    src/LWPolylineEntityWidths.cpp
-    src/OCSFrame.cpp
-    src/DXFDocument.cpp
+    src/DXFLWPolyline.cpp
+    src/DXFLWPolylineGeometry.cpp
+    src/DXFLWPolylineEditing.cpp
+    src/DXFLWPolylineWorldGeometry.cpp
+    src/DXFLWPolylineWidths.cpp
+    src/CartesianFrame.cpp
+    src/Drawing.cpp
+    src/DXFLayout.cpp
+    src/PaperGeometry.cpp
+    src/Entities/DXFLine.cpp
+    src/Entities/DXFCircle.cpp
+    src/Entities/DXFArc.cpp
+    src/Entities/DXFText.cpp
+    src/Entities/DXFMText.cpp
+    src/Entities/DXFDimension.cpp
+    src/Entities/DXFLeader.cpp
     src/Insert.cpp
     src/Drafting.cpp
     src/TrimExtend.cpp
@@ -19,12 +28,13 @@ add_library(DXFCADDomain STATIC
     src/CornerEdit.cpp
     src/SnapGeometry.cpp
     src/PolylineOffset.cpp
+    src/LineCorner.cpp
     src/LineFillet.cpp
     src/LineChamfer.cpp
     src/ArcCreation.cpp
     src/EntityConversion.cpp
     src/ParametricCurves.cpp
-    src/LegacyPolyline.cpp
+    src/DXFPolyline.cpp
 )
 add_library(DXFCAD::Domain ALIAS DXFCADDomain)
 target_include_directories(DXFCADDomain PUBLIC
@@ -53,7 +63,26 @@ if(DXFCAD_BUILD_PYTHON)
     find_package(Python 3.9 REQUIRED COMPONENTS Interpreter Development.Module)
     set(PYBIND11_FINDPYTHON ON)
     find_package(pybind11 3.0 CONFIG REQUIRED)
-    pybind11_add_module(DXFCAD MODULE src/PythonBindings.cpp src/FreeCADBindings.cpp)
+    pybind11_add_module(DXFCAD MODULE
+        src/Bindings/PythonBindings.cpp
+        src/Bindings/FreeCADBindings.cpp
+        src/FreeCAD/DocumentOperations.cpp
+        src/FreeCAD/ShapeGeometry.cpp
+        src/FreeCAD/LayerEditPlan.cpp
+        src/FreeCAD/ContourObjectEditPlan.cpp
+        src/FreeCAD/BatchObjectTransformPlan.cpp
+        src/FreeCAD/EntityCopyPlan.cpp
+        src/FreeCAD/EntityUpdatePlan.cpp
+        src/FreeCAD/ContourOperationPlan.cpp
+        src/FreeCAD/TrimPlan.cpp
+        src/FreeCAD/OffsetPlan.cpp
+        src/FreeCAD/EntityEditSnapshot.cpp
+        src/FreeCAD/PolylineEditSession.cpp
+        src/FreeCAD/TextEditSession.cpp
+        src/FreeCAD/CornerObjectEditPlan.cpp
+        src/FreeCAD/DrawingPopulation.cpp
+        src/FreeCAD/LayoutPreview.cpp
+    )
     target_link_libraries(DXFCAD PRIVATE DXFCAD::Domain)
     if(DXFCAD_BUILD_NATIVE_OBJECTS)
         include(cmake/NativeFreeCAD.cmake)
@@ -62,7 +91,7 @@ if(DXFCAD_BUILD_PYTHON)
     install(TARGETS DXFCAD LIBRARY DESTINATION . RUNTIME DESTINATION .)
     install(FILES Init.py InitGui.py dxfcad_workbench.py dxfcad_commands.py
         dxfcad_import.py dxfcad_objects.py dxfcad_edit.py dxfcad_export.py dxfcad_polyline_ui.py
-        dxfcad_polyline_view.py dxfcad_layout_ui.py dxfcad_line_ui.py dxfcad_circle_ui.py
+        dxfcad_polyline_view.py dxfcad_layout_ui.py dxfcad_paper_ui.py dxfcad_line_ui.py dxfcad_circle_ui.py
         dxfcad_move_ui.py dxfcad_transform_ui.py dxfcad_rectangle_ui.py
         dxfcad_drafting_ui.py dxfcad_text_ui.py dxfcad_view_snap.py dxfcad_arc_ui.py dxfcad_contour_ui.py
         DESTINATION .)
@@ -76,9 +105,21 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
-    add_executable(DXFCADLWPolylineEntityTests tests/LWPolylineEntityTests.cpp)
-    target_link_libraries(DXFCADLWPolylineEntityTests PRIVATE DXFCAD::Domain)
-    add_test(NAME DXFCAD.LWPolylineEntity COMMAND DXFCADLWPolylineEntityTests)
+    add_executable(DXFCADCartesianFrameTests tests/CartesianFrameTests.cpp)
+    target_link_libraries(DXFCADCartesianFrameTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.CartesianFrame COMMAND DXFCADCartesianFrameTests)
+    add_executable(DXFCADItemTests tests/DXFItemTests.cpp)
+    target_link_libraries(DXFCADItemTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.DXFItem COMMAND DXFCADItemTests)
+    add_executable(DXFCADChangeSetTests tests/ChangeSetTests.cpp)
+    target_link_libraries(DXFCADChangeSetTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.ChangeSet COMMAND DXFCADChangeSetTests)
+    add_executable(DXFCADNamingTests tests/NamingTests.cpp)
+    target_link_libraries(DXFCADNamingTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.Naming COMMAND DXFCADNamingTests)
+    add_executable(DXFCADDXFLWPolylineTests tests/DXFLWPolylineTests.cpp)
+    target_link_libraries(DXFCADDXFLWPolylineTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.DXFLWPolyline COMMAND DXFCADDXFLWPolylineTests)
     add_executable(DXFCADConversionTests tests/EntityConversionTests.cpp)
     target_link_libraries(DXFCADConversionTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.EntityConversion COMMAND DXFCADConversionTests)
@@ -91,15 +132,18 @@ if(BUILD_TESTING)
     add_executable(DXFCADLWPolylineWorldTests tests/LWPolylineWorldTests.cpp)
     target_link_libraries(DXFCADLWPolylineWorldTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.LWPolylineWorld COMMAND DXFCADLWPolylineWorldTests)
-    add_executable(DXFCADDocumentTests tests/DXFDocumentTests.cpp)
-    target_link_libraries(DXFCADDocumentTests PRIVATE DXFCAD::Domain)
-    add_test(NAME DXFCAD.Document COMMAND DXFCADDocumentTests)
+    add_executable(DXFCADDrawingTests tests/DrawingTests.cpp)
+    target_link_libraries(DXFCADDrawingTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.Drawing COMMAND DXFCADDrawingTests)
     add_executable(DXFCADMTextTests tests/MTextTests.cpp)
     target_link_libraries(DXFCADMTextTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.MText COMMAND DXFCADMTextTests)
     add_executable(DXFCADDimensionTests tests/DimensionTests.cpp)
     target_link_libraries(DXFCADDimensionTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.Dimension COMMAND DXFCADDimensionTests)
+    add_executable(DXFCADLeaderTests tests/LeaderTests.cpp)
+    target_link_libraries(DXFCADLeaderTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.Leader COMMAND DXFCADLeaderTests)
     add_executable(DXFCADInsertTests tests/InsertTests.cpp)
     target_link_libraries(DXFCADInsertTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.Insert COMMAND DXFCADInsertTests)
@@ -112,6 +156,9 @@ if(BUILD_TESTING)
     add_executable(DXFCADViewportTests tests/ViewportTests.cpp)
     target_link_libraries(DXFCADViewportTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.Viewport COMMAND DXFCADViewportTests)
+    add_executable(DXFCADLayoutTests tests/LayoutTests.cpp)
+    target_link_libraries(DXFCADLayoutTests PRIVATE DXFCAD::Domain)
+    add_test(NAME DXFCAD.Layout COMMAND DXFCADLayoutTests)
     add_executable(DXFCADDraftingTests tests/DraftingTests.cpp)
     target_link_libraries(DXFCADDraftingTests PRIVATE DXFCAD::Domain)
     add_test(NAME DXFCAD.Drafting COMMAND DXFCADDraftingTests)
@@ -168,6 +215,10 @@ if(BUILD_TESTING)
             COMMAND "${Python_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_workbench_startup.py"
         )
+        add_test(NAME DXFCAD.Commands
+            COMMAND "${Python_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_commands.py"
+        )
         add_test(NAME DXFCAD.PythonLWPolyline
             COMMAND "${Python_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_lwpolyline.py"
@@ -197,6 +248,10 @@ if(BUILD_TESTING)
             )
         endif()
         if(DXFCAD_FREECAD_PYTHON_EXECUTABLE)
+            add_test(NAME DXFCAD.FreeCADEditPlan
+                COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_edit_plan.py"
+                    "$<TARGET_FILE_DIR:DXFCAD>")
             add_test(NAME DXFCAD.FreeCADPolylineCornerPlan
                 COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_polyline_corner_plan.py"
@@ -245,9 +300,9 @@ if(BUILD_TESTING)
                 COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_layers.py"
                     "$<TARGET_FILE_DIR:DXFCAD>")
-            add_test(NAME DXFCAD.FreeCADDocumentObject
+            add_test(NAME DXFCAD.FreeCADDrawingObject
                 COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_document_object.py"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_drawing_object.py"
                     "$<TARGET_FILE_DIR:DXFCAD>")
             add_test(NAME DXFCAD.FreeCADContour
                 COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
@@ -265,6 +320,10 @@ if(BUILD_TESTING)
                 COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_mtext.py"
                     "$<TARGET_FILE_DIR:DXFCAD>")
+            add_test(NAME DXFCAD.FreeCADLeader
+                COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_leader.py"
+                    "$<TARGET_FILE_DIR:DXFCAD>")
             add_test(NAME DXFCAD.FreeCADPolylineEditing
                 COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_polyline_editing.py"
@@ -277,6 +336,15 @@ if(BUILD_TESTING)
             add_test(NAME DXFCAD.FreeCADImport
                 COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_freecad_import.py"
+                    "$<TARGET_FILE_DIR:DXFCAD>"
+            )
+            add_test(NAME DXFCAD.FreeCADLayoutPreview
+                COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_layout_preview.py"
+                    "$<TARGET_FILE_DIR:DXFCAD>")
+            add_test(NAME DXFCAD.FreeCADDWGImport
+                COMMAND "${DXFCAD_FREECAD_PYTHON_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_dwg_import.py"
                     "$<TARGET_FILE_DIR:DXFCAD>"
             )
         endif()

@@ -84,7 +84,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     folder=Path(temp)
     out=folder/"text.dxf"
     export_dxf(out,doc)
-    parsed=DXFCAD.DXFDocument.read(str(out))
+    parsed=DXFCAD.Drawing.read(str(out))
     assert len(parsed.entities)==3
     contents=[DXFCAD.text_info(e.raw)[0] for e in parsed.entities if e.type in ("TEXT","MTEXT")]
     assert "Updated label" in contents and "First line\nSecond {literal} \\P" in contents

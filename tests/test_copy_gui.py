@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert tool.callback is None and tool.overlay is None
     out = folder/"copies.dxf"
     export_dxf(out,doc)
-    parsed = DXFCAD.DXFDocument.read(str(out))
+    parsed = DXFCAD.Drawing.read(str(out))
     assert len(parsed.entities) == 19
     assert len(set(e.handle for e in parsed.entities)) == 19
     assert "Retain opaque data" in out.read_text()

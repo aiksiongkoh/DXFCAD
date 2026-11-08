@@ -1,13 +1,14 @@
 #pragma once
-#include <DXFCAD/DXFDocument.h>
+#include <DXFCAD/ChangeSet.h>
+#include <DXFCAD/Drawing.h>
 #include <array>
 
 namespace DXFCAD {
-// Two persistent LINE updates and one identity-free LINE/ARC connector.
+// A change set containing two LINE updates and one identity-free LINE/ARC connector.
 // Construction validates the full proposed drawing without changing its source.
-class CornerEditPlan {
+class CornerChangeSet : public ChangeSet {
 public:
-    CornerEditPlan(const DXFDocument& source,
+    CornerChangeSet(const Drawing& source,
                    const std::vector<std::pair<int,std::string>>& live,
                    const std::array<std::size_t,2>& selected,
                    const std::vector<std::string>& updates,

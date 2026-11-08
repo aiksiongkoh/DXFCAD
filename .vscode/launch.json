@@ -17,7 +17,7 @@
                 { "name": "FREECAD_USER_TEMP", "value": "${workspaceFolder}/build/python311/vscode-profile" }
             ],
             "stopAtEntry": false,
-            "externalConsole": false,
+            "console": "internalConsole",
             "preLaunchTask": "DXFCAD: build and stage FreeCAD 1.1"
         },
         {

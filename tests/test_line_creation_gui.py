@@ -121,14 +121,14 @@ with tempfile.TemporaryDirectory(dir=profile) as temp:
     assert all(doc.getObject(name).DXFData == record for name,record in raw.items())
     output = folder/"exported.dxf"
     export_dxf(output,doc)
-    parsed = DXFCAD.DXFDocument.read(str(output))
+    parsed = DXFCAD.Drawing.read(str(output))
     assert len(parsed.entities) == 6
     assert len({e.handle for e in parsed.entities}) == 6
     assert "Retain opaque data" in output.read_text()
     # The opaque SPLINE above is deliberately incomplete. Use a clean drawing
     # of the newly created lines for the independent reader's interoperability check.
     clean = folder/"independent-lines.dxf"
-    DXFCAD.DXFDocument.empty(4).write(str(clean),added=list(raw.values()))
+    DXFCAD.Drawing.empty(4).write(str(clean),added=list(raw.values()))
     import Import
     independent = FreeCAD.newDocument("IndependentLines")
     Import.readDXF(str(clean),independent.Name,False)
