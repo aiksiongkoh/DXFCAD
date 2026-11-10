@@ -1,6 +1,9 @@
 #include "ShapeGeometry.h"
+#include "../WidthBoundary.h"
+#include <DXFCAD/CartesianFrame.h>
 #include <DXFCAD/ParametricCurves.h>
 
+#include <cmath>
 #include <filesystem>
 #include <set>
 #include <stdexcept>
@@ -38,6 +41,16 @@ py::object shape(const DXFEntity& entity, const std::string& fontFile, bool show
 {
     const auto geometry = entity.geometry();
     const auto part = py::module_::import("Part");
+    if (entity.type() == "ARC") {
+        // Native center/radius/angles remain well-defined when the endpoints
+        // nearly coincide; fitting a circle through three points does not.
+        const auto& arc = *geometry.segments.at(0).arc;
+        const CartesianFrame frame(arc.normal);
+        const auto curve = part.attr("Circle")(vector(arc.center), vector(arc.normal), arc.radius);
+        curve.attr("XAxis") = vector(frame.xAxis());
+        const double start = entity.record().number(50) * std::acos(-1.0) / 180.0;
+        return curve.attr("toShape")(start, start + arc.sweep);
+    }
     if (const auto* ellipse=dynamic_cast<const DXFEllipse*>(&entity)) {
         const auto c=ellipse->center(),a=ellipse->majorAxis(),b=ellipse->minorAxis();
         const auto curve=part.attr("Ellipse")(vector({c.x+a.x,c.y+a.y,c.z+a.z}),vector({c.x+b.x,c.y+b.y,c.z+b.z}),vector(c));
@@ -55,8 +68,12 @@ py::object shape(const DXFEntity& entity, const std::string& fontFile, bool show
         for (const auto k : unique) knots.append(k);
         for (const auto m : counts) multiplicities.append(m);
         const auto curve=part.attr("BSplineCurve")();
-        curve.attr("buildFromPolesMultsKnots")(poles,multiplicities,knots,spline->periodic(),spline->degree(),weights);
-        return curve.attr("toShape")();
+        // DXF supplies the full knot vector (pole count + degree + 1),
+        // including expanded periodic control nets. OCC's periodic
+        // constructor expects a compact cyclic representation instead.
+        curve.attr("buildFromPolesMultsKnots")(poles,multiplicities,knots,false,spline->degree(),weights);
+        if (spline->periodic()) curve.attr("setPeriodic")();
+        return curve.attr("toShape")(spline->startParameter(),spline->endParameter());
     }
     py::list edges;
     for (const auto& instance : entity.blockParts()) {
@@ -77,7 +94,12 @@ py::object shape(const DXFEntity& entity, const std::string& fontFile, bool show
     std::set<std::size_t> covered;
     if (showWidths) {
         py::list faces;
+        const double tolerance = part.attr("Precision").attr("confusion")().cast<double>();
         for (const auto& region : entity.widthRegions()) {
+            if (Detail::collapsedWidthBoundary(region, tolerance)) {
+                covered.insert(region.segmentIndex);
+                continue;
+            }
             py::list points;
             for (const auto& p : region.points) points.append(vector(p));
             points.append(vector(region.points.front()));

@@ -11,7 +11,7 @@ module_directory = Path(sys.argv.pop(1)).resolve()
 sys.path.insert(0, str(module_directory))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import DXFCAD
-from dxfcad_import import import_dxf, default_text_font
+from dxfcad_import import import_dxf, default_text_font, initialize_population
 from dxfcad_objects import EntityProxy
 from dxfcad_export import export_dxf
 
@@ -101,6 +101,65 @@ class MTextTests(unittest.TestCase):
         self.assertEqual(len(literal.Vertexes),len(escaped.Vertexes))
         for expected,actual in zip(literal.Vertexes,escaped.Vertexes):
             self.assertLess((actual.Point-expected.Point).Length,2e-6)
+
+    def test_windows1252_import_preserves_bytes_and_displays_unicode(self):
+        header = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$DWGCODEPAGE\n3\nANSI_1252\n0\nENDSEC\n"
+        content = "M\u00e9dica \u20ac"
+        raw = BASE + "3\nM\u00e9dica \n1\n\u20ac\n1001\nSynthetic\n1000\nKeep opaque data\n"
+        drawing = (header + "0\nSECTION\n2\nENTITIES\n" + raw + "0\nENDSEC\n0\nEOF\n").encode("cp1252")
+        with tempfile.TemporaryDirectory(dir=module_directory) as temp:
+            source = Path(temp)/"legacy.dxf"
+            source.write_bytes(drawing)
+            doc = import_dxf(source)
+            obj = next(o for o in doc.Objects if "DXFData" in o.PropertiesList)
+            self.assertIn("M\\U+00E9dica", obj.DXFData)
+            self.assertEqual(DXFCAD.text_info(obj.DXFData)[0], content)
+            self.assertFalse(obj.Shape.isNull())
+            self.assertTrue(obj.Shape.isValid())
+            self.assertEqual(DXFCAD.current_drawing_bytes(obj.DXFSourceRoot), drawing)
+            reference = self.feature(BASE + "1\n" + content + "\n").Shape
+            self.assertEqual(len(obj.Shape.Vertexes), len(reference.Vertexes))
+            for expected, actual in zip(reference.Vertexes, obj.Shape.Vertexes):
+                self.assertLess((actual.Point-expected.Point).Length, 2e-6)
+            obj.DXFData = DXFCAD.parse_entity(obj.DXFData).translated(DXFCAD.Vector3D(2,3,0))
+            doc.recompute()
+            exported = DXFCAD.current_drawing_bytes(obj.DXFSourceRoot)
+            self.assertIn("M\u00e9dica \n1\n\u20ac".encode("cp1252"), exported)
+            saved = Path(temp)/"legacy.FCStd"
+            doc.saveAs(str(saved))
+            FreeCAD.closeDocument(doc.Name)
+            restored = FreeCAD.openDocument(str(saved))
+            self.assertEqual(DXFCAD.current_drawing_bytes(next(o for o in restored.Objects if "DXFSourceData" in o.PropertiesList)), exported)
+
+    def test_windows1252_expansion_splits_chunks_and_utf8_is_unchanged(self):
+        header = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$DWGCODEPAGE\n3\nANSI_1252\n0\nENDSEC\n"
+        for version, encoding in (("AC1015", "cp1252"), ("AC1021", "utf-8")):
+            content = "\u00e9" * 40
+            raw = BASE + "1\n" + content + "\n"
+            drawing = (header.replace("AC1015", version) + "0\nSECTION\n2\nENTITIES\n" + raw + "0\nENDSEC\n0\nEOF\n").encode(encoding)
+            population = DXFCAD.populate_drawing(self.doc, DXFCAD.Drawing.parse(drawing), font_file=self.font)
+            obj = population.entities[0]
+            initialize_population(population)
+            self.doc.recompute()
+            self.assertEqual(DXFCAD.text_info(obj.DXFData)[0], content)
+            self.assertEqual(DXFCAD.current_drawing_bytes(population.root), drawing)
+            values = obj.DXFData.splitlines()
+            self.assertTrue(all(len(values[i+1].encode('utf-8')) <= 250 for i in range(0,len(values),2) if values[i] in ('1','3')))
+            if encoding == "utf-8":
+                self.assertEqual(obj.DXFData, raw)
+
+    def test_windows1252_single_line_text_import_and_export(self):
+        raw = "0\nTEXT\n5\nEF\n10\n0\n20\n0\n40\n2\n1\nL\u00e1piz\n"
+        header = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$DWGCODEPAGE\n3\nANSI_1252\n0\nENDSEC\n"
+        drawing = (header + "0\nSECTION\n2\nENTITIES\n" + raw + "0\nENDSEC\n0\nEOF\n").encode('cp1252')
+        population = DXFCAD.populate_drawing(self.doc, DXFCAD.Drawing.parse(drawing), font_file=self.font)
+        initialize_population(population)
+        self.doc.recompute()
+        obj = population.entities[0]
+        self.assertEqual(DXFCAD.text_info(obj.DXFData)[0], "L\u00e1piz")
+        self.assertTrue(obj.Shape.isValid())
+        self.assertFalse(obj.Shape.isNull())
+        self.assertEqual(DXFCAD.current_drawing_bytes(population.root), drawing)
 
     def test_native_records_undo_export_and_cold_restore(self):
         raw = BASE+"3\n{\\fArial|b0|i0|c0|p34;\\H0.75x;First\\P\n1\nSecond\\U+00B0}\n71\n5\n41\n8\n1001\nSynthetic\n1000\nPreserve chunks\n"

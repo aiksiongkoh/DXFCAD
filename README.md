@@ -248,6 +248,10 @@ classes. They derive from `Part::Feature` through the shared abstract
 restoration. LINE preserves world-coordinate endpoints; ARC uses the existing C++
 OCS transform and counterclockwise sweep semantics. Their shapes are built directly
 with OpenCASCADE, with Python used only for presentation and UI.
+ARC display uses the native center, radius, OCS axes, and angular interval in
+both adapters. This also handles nearly complete revolutions whose endpoints
+are too close for a stable three-point circle construction; the stored entity
+remains an ARC with its original angle values.
 
 CIRCLE and TEXT use native `DXFCAD::CircleObject` and `DXFCAD::TextObject`
 classes through the same base. CIRCLE builds a full analytic circle in its OCS
@@ -920,6 +924,9 @@ Widths interpolate linearly along each segment. Wide arcs that cross their own
 centers are split into simple radial regions; FreeCAD's Part kernel unites
 overlapping faces. Zero-width segments retain their centerlines, and zero-length
 straight segments generate no width area.
+Display adapters omit width boundaries whose points all collapse to one vertex
+at the geometry kernel's linear tolerance. The native widths and derived domain
+regions remain unchanged.
 
 Open ends use flat caps. Vertex corners use intersections of offset tangents,
 including taper, with bevels when a miter exceeds ten times the larger half-width
@@ -1653,6 +1660,9 @@ installed to restore the adapters and recompute. `SourceFile` is provenance only
 `SourceUnitCode` records `$INSUNITS`; numeric coordinates are retained without
 automatic unit conversion, including when units are unspecified.
 
+The reader accepts a trailing Ctrl+Z text-file terminator and whitespace after
+the DXF EOF record; export ends at the DXF EOF record.
+
 The current importer supports ASCII/UTF-8 DXF model-space LWPOLYLINE, LINE, ARC,
 CIRCLE, TEXT with standard horizontal and vertical justification, plain MTEXT,
 saved pictures of standard DIMENSION kinds, straight unannotated LEADER paths,
@@ -1674,13 +1684,25 @@ visible characters have one height. The original formatting remains in the
 native records. Mixed character heights, bold/italic overrides, tabs, and other
 inline formatting still produce import warnings. Exact line spacing uses the
 nominal height; at-least spacing also accommodates a larger displayed height.
-MTEXT Unicode escapes (`\U+hhhh`, including paired UTF-16 surrogates) decode to
+TEXT and MTEXT Unicode escapes (`\U+hhhh`, including paired UTF-16 surrogates) decode to
 UTF-8 for display, including cached DIMENSION text. Literal escapes stay in
 the native records and DXF export; malformed escapes and unpaired surrogates
 are rejected.
+For drawings declared as pre-2007 `ANSI_1252`, imported TEXT/MTEXT content uses
+Unicode escapes in the FreeCAD entity properties. C++ domain records and the
+drawing snapshot retain the original bytes. Unchanged content is restored to
+its original byte strings and chunk order during export, including after
+geometry edits. MTEXT escape expansion is split into 250-byte continuation
+chunks. Other legacy encodings and non-text metadata conversion remain deferred.
 `DXFCAD.MText` and `DXFCAD.FreeCADMText` test
 parsing/layout, wrapping, attachment, tilted WCS placement, font recovery,
 undo/redo, source-free cold restore, and preservation through DXF export.
+
+SPLINE display retains the native control points, weights, and full knot vector.
+The FreeCAD adapter constructs that representation first, then uses FreeCAD's
+periodic conversion when the DXF periodic flag is set. Display edges use the
+native parameter interval; the converted display representation does not change
+the stored DXF spline or its export records.
 
 Cached DIMENSION display covers rotated/linear, aligned, angular, diameter,
 radius, three-point angular, and ordinate records with a usable picture BLOCK.

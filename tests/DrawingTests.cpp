@@ -4,7 +4,7 @@
 #include <stdexcept>
 
 namespace {
-void check(bool yes) { if (!yes) throw std::runtime_error("DXF document check failed"); }
+void check(bool yes, const char* message = "DXF document check failed") { if (!yes) throw std::runtime_error(message); }
 template<typename F> void rejects(F f) {
     try { f(); } catch (const std::exception&) { return; }
     throw std::runtime_error("Malformed DXF accepted");
@@ -18,6 +18,15 @@ int main()
     try {
         const std::string lw = "0\nLWPOLYLINE\n5\nAB\n8\nExample\n90\n2\n70\n0\n38\n3\n43\n4\n10\n0\n20\n0\n40\n1\n41\n2\n42\n1\n10\n2\n20\n0\n1001\nExampleXdata\n1000\nuntouched\n";
         const auto poly = DXFCAD::parseEntity(lw);
+        for (const std::string trailer : {"\n\n", "\x1a", "\x1a\r\n\r\n", " \t\r\n\x1a\n"}) {
+            const auto terminated = DXFCAD::Drawing::parse(document(lw) + trailer);
+            check(terminated.entities.size() == 1 && terminated.entities[0]->raw() == lw,
+                  "text-file trailer must preserve entity data");
+            check(terminated.serialize() == document(lw), "export must end at DXF EOF");
+        }
+        rejects([&] { DXFCAD::Drawing::parse(document(lw) + "999\n"); });
+        rejects([&] { DXFCAD::Drawing::parse(document(lw) + "\x1a\ninvalid\n"); });
+        rejects([&] { DXFCAD::Drawing::parse("0\nSECTION\n2\nENTITIES\n" + lw + "\x1a\n"); });
         check(poly->raw() == lw && poly->layer() == "Example" && poly->handle() == "AB");
         const auto pg = poly->geometry().segments.at(0);
         check(pg.arc && pg.arc->radius == 1 && pg.start.z == 3);
@@ -61,6 +70,31 @@ int main()
         check(color[0] == 1 && color[1] == 0.5 && color[2] == 0);
         const auto table = DXFCAD::Drawing::parse("0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n1\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nLAYER\n2\nHidden\n62\n-5\n0\nENDSEC\n"+document(lw));
         check(table.insertionUnits == 1 && !table.layers.at("Hidden").visible);
+        const std::string legacyHeader = "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1015\n9\n$DWGCODEPAGE\n3\nANSI_1252\n0\nENDSEC\n";
+        const std::string legacyText = "0\nMTEXT\n5\nCD\n10\n0\n20\n0\n40\n1\n3\nM\xe9" "dica \\P\n7\nStandard\n1\n\x80\n102\n{opaque\n1\nkeep\n102\n}\n1001\nAPP\n1000\nunchanged\n";
+        const auto legacy = DXFCAD::Drawing::parse(legacyHeader + document(legacyText));
+        check(legacy.entities.at(0)->raw() == legacyText, "legacy raw record");
+        auto escaped = legacyText;
+        escaped.replace(escaped.find('\xe9'), 1, "\\U+00E9");
+        escaped.replace(escaped.find('\x80'), 1, "\\U+20AC");
+        check(DXFCAD::parseEntity(escaped)->geometry().text->text == "M\xc3\xa9" "dica \n\xe2\x82\xac", "legacy Unicode display");
+        check(legacy.serializeCurrent({{0, escaped}}) == legacyHeader + document(legacyText), "legacy unchanged export");
+        const auto movedText = DXFCAD::parseEntity(escaped)->translated({2,3,0});
+        const auto movedLegacy = legacy.serializeCurrent({{0, movedText}});
+        check(movedLegacy.find("3\nM\xe9" "dica \\P\n7\nStandard\n1\n\x80\n") != std::string::npos, "legacy moved bytes");
+        check(DXFCAD::Drawing::parse(movedLegacy).entities[0]->geometry().text->origin.x == 2, "legacy moved geometry");
+        auto changed = escaped;
+        const std::string oldContent = "M\\U+00E9dica";
+        changed.replace(changed.find(oldContent), oldContent.size(), "Changed");
+        check(legacy.serializeCurrent({{0, changed}}).find("Changed") != std::string::npos, "legacy edited content");
+        const std::string escapedText = "0\nTEXT\n5\nEF\n10\n0\n20\n0\n40\n1\n1\nL\\U+00E1piz \\U+D83D\\U+DE00\n";
+        check(DXFCAD::parseEntity(escapedText)->geometry().text->text == "L\xc3\xa1piz \xf0\x9f\x98\x80", "TEXT Unicode display");
+        rejects([&] { DXFCAD::parseEntity("0\nTEXT\n10\n0\n20\n0\n40\n1\n1\n\\U+D800\n")->geometry(); });
+        const std::string legacySingle = "0\nTEXT\n5\nEF\n10\n0\n20\n0\n40\n1\n1\nL\xe1piz\n";
+        const auto legacySingleDoc = DXFCAD::Drawing::parse(legacyHeader + document(legacySingle));
+        auto escapedSingle = legacySingle;
+        escapedSingle.replace(escapedSingle.find('\xe1'), 1, "\\U+00E1");
+        check(legacySingleDoc.serializeCurrent({{0, escapedSingle}}) == legacyHeader + document(legacySingle), "TEXT legacy unchanged export");
         std::cout << "DXF entity parsing, geometry, native records, and layers passed.\n";
     } catch (const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

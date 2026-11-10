@@ -2,6 +2,9 @@
 #include <DXFCAD/Native/EntityObject.h>
 #include <DXFCAD/Native/LeaderObject.h>
 #include <DXFCAD/Drawing.h>
+#include <DXFCAD/CartesianFrame.h>
+#include "../WidthBoundary.h"
+#include <Precision.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -14,6 +17,7 @@
 #include <gp_Circ.hxx>
 #include <stdexcept>
 #include <set>
+#include <cmath>
 
 namespace DXFCAD {
 PROPERTY_SOURCE_ABSTRACT(DXFCAD::EntityObject, Part::Feature)
@@ -52,9 +56,24 @@ TopoDS_Shape EntityObject::buildShape(const DXFEntity& entity) const
 {
     const auto geometry = entity.geometry();
     auto point = [](const Vector3D& p) { return gp_Pnt(p.x, p.y, p.z); };
+    if (entity.type() == "ARC") {
+        const auto& arc = *geometry.segments.at(0).arc;
+        const CartesianFrame frame(arc.normal);
+        const auto x = frame.xAxis();
+        const gp_Circ circle(gp_Ax2(point(arc.center),
+            gp_Dir(arc.normal.x, arc.normal.y, arc.normal.z), gp_Dir(x.x, x.y, x.z)), arc.radius);
+        const double start = entity.record().number(50) * std::acos(-1.0) / 180.0;
+        BRepBuilderAPI_MakeEdge edge(circle, start, start + arc.sweep);
+        if (!edge.IsDone()) throw std::runtime_error("Cannot build native DXF arc");
+        return edge.Edge();
+    }
     std::vector<TopoDS_Shape> shapes;
     std::set<std::size_t> covered;
     for (const auto& region : entity.widthRegions()) {
+        if (Detail::collapsedWidthBoundary(region, Precision::Confusion())) {
+            covered.insert(region.segmentIndex);
+            continue;
+        }
         BRepBuilderAPI_MakePolygon polygon;
         for (const auto& p : region.points) polygon.Add(point(p));
         polygon.Close();

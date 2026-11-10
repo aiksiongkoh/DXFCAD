@@ -1,5 +1,6 @@
 #include "DXFText.h"
 #include "EntityCoordinates.h"
+#include "TextEncoding.h"
 #include <DXFCAD/CartesianFrame.h>
 #include <DXFCAD/Drafting.h>
 
@@ -31,7 +32,15 @@ EntityGeometry DXFText::geometry() const {
     const double angle = fields.number(50)*std::acos(-1.0)/180;
     const auto x = frame.xAxis(), y = frame.yAxis();
     const double c = std::cos(angle), s = std::sin(angle);
-    return {{}, {}, TextGeometry{fields.value(1), frame.toWorld({origin.x, origin.y}, origin.z),
+    const auto content = fields.value(1);
+    std::string decoded;
+    for (std::size_t i = 0; i < content.size(); ++i) {
+        if (content.compare(i, 3, "\\U+") == 0) {
+            ++i;
+            decoded += unicodeEscape(content, i, "TEXT");
+        } else decoded += content[i];
+    }
+    return {{}, {}, TextGeometry{decoded, frame.toWorld({origin.x, origin.y}, origin.z),
         {c*x.x+s*y.x, c*x.y+s*y.y, c*x.z+s*y.z},
         {-s*x.x+c*y.x, -s*x.y+c*y.y, -s*x.z+c*y.z}, frame.normal(), height, width, horizontal, vertical}};
 }

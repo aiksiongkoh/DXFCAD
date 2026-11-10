@@ -5,6 +5,7 @@
 #include "Entities/DXFText.h"
 #include "Entities/DXFMText.h"
 #include "Entities/DXFDimension.h"
+#include "LegacyText.h"
 #include <DXFCAD/Drawing.h>
 #include <DXFCAD/ParametricCurves.h>
 #include <DXFCAD/DXFPolyline.h>
@@ -36,24 +37,10 @@ using Detail::extrusion;
 std::string displayContext(const std::string& context,const GroupSequence& source)
 {
     if (std::none_of(context.begin(),context.end(),[](unsigned char c) { return c>=0x80; })) return context;
-    std::string version,codepage;
-    bool header=false;
-    for (std::size_t i=0;i+1<source.groups.size();++i) {
-        const auto& group=source.groups[i];
-        if (group.first==0 && group.second=="SECTION") header=source.groups[i+1]==std::make_pair(2,std::string("HEADER"));
-        if (group.first==0 && group.second=="ENDSEC" && header) break;
-        if (!header || group.first!=9) continue;
-        if (group.second=="$ACADVER") version=source.groups[i+1].second;
-        if (group.second=="$DWGCODEPAGE") codepage=source.groups[i+1].second;
-    }
-    if (codepage!="ANSI_1252" || (!version.empty() && version>="AC1021")) return context;
-    constexpr unsigned special[]={0x20ac,0x81,0x201a,0x192,0x201e,0x2026,0x2020,0x2021,
-        0x2c6,0x2030,0x160,0x2039,0x152,0x8d,0x17d,0x8f,
-        0x90,0x2018,0x2019,0x201c,0x201d,0x2022,0x2013,0x2014,
-        0x2dc,0x2122,0x161,0x203a,0x153,0x9d,0x17e,0x178};
+    if (!Detail::usesWindows1252(source)) return context;
     std::string result;
     for (unsigned char c : context) {
-        const unsigned cp=c>=0x80 && c<0xa0 ? special[c-0x80] : c;
+        const unsigned cp=Detail::windows1252Codepoint(c);
         if (cp<0x80) result+=static_cast<char>(cp);
         else if (cp<0x800) {
             result+=static_cast<char>(0xc0|(cp>>6)); result+=static_cast<char>(0x80|(cp&63));
@@ -91,6 +78,14 @@ GroupSequence groups(const std::string& ascii)
         const int group = integral(code);
         if (group < 0 || group > 1071) throw std::invalid_argument("Invalid DXF group code");
         result.groups.emplace_back(group, value);
+        // Some text DXF writers append a Ctrl+Z text-file terminator and
+        // whitespace after the DXF EOF record. These are not group records.
+        if (group == 0 && value == "EOF") {
+            const auto at = input.tellg();
+            if (at != std::streampos(-1)
+                && ascii.find_first_not_of(" \t\r\n\x1a", static_cast<std::size_t>(at)) == std::string::npos)
+                break;
+        }
     }
     return result;
 }
@@ -1065,7 +1060,14 @@ std::string Drawing::serialize(const std::map<std::size_t, std::string>& replace
             const auto index = found->second;
             if (deleted.count(index)) { i = slots_[index].second; continue; }
             const auto replacement = replacements.find(index);
-            if (replacement != replacements.end()) { output << replacement->second; i = slots_[index].second; continue; }
+            if (replacement != replacements.end()) {
+                const auto& original = entities.at(index)->record();
+                output << ((original.value(0) == "MTEXT" || original.value(0) == "TEXT") && Detail::usesWindows1252(source_)
+                    ? Detail::restoreLegacyText(original, groups(replacement->second)).raw()
+                    : replacement->second);
+                i = slots_[index].second;
+                continue;
+            }
         }
         const auto& g = source_.groups[i];
         output << g.first << '\n';

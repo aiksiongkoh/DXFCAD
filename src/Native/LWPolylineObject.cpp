@@ -1,6 +1,8 @@
 #include <Python.h>
 #include <DXFCAD/Native/LWPolylineObject.h>
 #include <DXFCAD/Drawing.h>
+#include "../WidthBoundary.h"
+#include <Precision.hxx>
 
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -30,6 +32,10 @@ TopoDS_Shape buildPolylineShape(const DXFEntity& entity, bool showWidths)
     if (showWidths) {
         std::vector<TopoDS_Shape> faces;
         for (const auto& region : entity.widthRegions()) {
+            if (Detail::collapsedWidthBoundary(region, Precision::Confusion())) {
+                covered.insert(region.segmentIndex);
+                continue;
+            }
             BRepBuilderAPI_MakePolygon polygon;
             for (const auto& p : region.points) polygon.Add(point(p));
             polygon.Close();

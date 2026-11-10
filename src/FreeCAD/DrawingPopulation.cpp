@@ -1,5 +1,7 @@
 #include "DrawingPopulation.h"
 #include "DocumentOperations.h"
+#include "../LegacyText.h"
+#include <DXFCAD/Drafting.h>
 
 #include <algorithm>
 #include <limits>
@@ -18,13 +20,16 @@ DrawingPopulation::DrawingPopulation(py::object document,const Drawing& drawing,
     auto module=py::module_::import("DXFCAD");
     root=module.attr("create_drawing")(document,py::cast(source),sourceFile,label,name);
     entities.reserve(source.entities.size());
+    const bool legacyText = Detail::usesWindows1252(readDXFGroups(source.serialize()));
     if (!progress.is_none()) progress(0,source.entities.size());
     for (std::size_t i=0;i<source.entities.size();++i) {
         const auto& entity=source.entities[i];
         const auto layer=entity->layer();
         if (!layerGroups.count(layer))
             layerGroups.emplace(layer,materializeLayerGroup(root,layer,py::none()));
-        py::object object=createOwnedEntity(root,entity,static_cast<int>(i),font,layerGroups.at(layer));
+        const auto displayEntity = legacyText && (entity->type() == "MTEXT" || entity->type() == "TEXT")
+            ? parseEntity(Detail::escapedLegacyText(entity->record()).raw(), entity->context()) : entity;
+        py::object object=createOwnedEntity(root,displayEntity,static_cast<int>(i),font,layerGroups.at(layer));
         entities.push_back(object);
         if (!progress.is_none()) progress(i+1,source.entities.size());
     }
