@@ -59,7 +59,7 @@ if(DXFCAD_BUILD_NATIVE_OBJECTS AND NOT DXFCAD_BUILD_PYTHON)
 endif()
 if(DXFCAD_BUILD_PYTHON)
     # Select the Python SDK matching the intended FreeCAD runtime. Never fetch
-    # dependencies or rely on a sibling FreeCAD/XynaCAD source checkout.
+    # dependencies or rely on a sibling source checkout.
     find_package(Python 3.9 REQUIRED COMPONENTS Interpreter Development.Module)
     set(PYBIND11_FINDPYTHON ON)
     find_package(pybind11 3.0 CONFIG REQUIRED)

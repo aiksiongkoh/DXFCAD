@@ -13,9 +13,9 @@ creating tests, or evaluating correctness.
 ## Project rules
 
 - Use FreeCAD's existing APIs whenever possible.
-- Keep this repository independent of FreeCAD and XynaCAD.
-- DXFCAD must work without XynaCAD installed.
-- Keep the dependency direction XynaCAD -> DXFCAD -> FreeCAD.
+- Keep this repository separate from FreeCAD's source repository.
+- DXFCAD must work as a standalone FreeCAD workbench.
+- Keep the dependency direction DXFCAD -> FreeCAD.
 - Do not modify FreeCAD source without permission.
 - Do not commit proprietary code to public repositories.
 - Use C++ for domain objects and algorithms, including geometry, transformations,
@@ -42,4 +42,4 @@ creating tests, or evaluating correctness.
   do not retain mistaken names as compatibility aliases or runtime type names.
 - Develop and test one feature at a time.
 - Implement LWPolyline first, with a C++ domain object and Python editing UI.
-- Keep specialized XynaCAD manufacturing rules in the XynaCAD repository.
+- Keep application-specific manufacturing rules outside this repository.

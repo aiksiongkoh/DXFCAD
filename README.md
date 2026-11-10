@@ -2,8 +2,17 @@
 
 A standalone FreeCAD workbench for creating and manipulating native DXF entities.
 
-DXFCAD is maintained independently of FreeCAD and XynaCAD. XynaCAD is a
-specialized downstream workbench that uses DXFCAD's APIs.
+DXFCAD is maintained independently of FreeCAD.
+
+## Installation
+
+For steps and commands only, use the [Windows quick install guide](INSTALL_WINDOWS_QUICK.md).
+
+For a new Windows machine, follow
+[Install FreeCAD and DXFCAD from scratch](INSTALL_WINDOWS.md). It covers FreeCAD,
+the C++ build tools, Python development files, pybind11, building, testing, and
+installing the workbench. The tested starting point is FreeCAD 1.1.4 with
+64-bit Python 3.11, using the compatibility adapter.
 
 ## Contributing
 
@@ -20,7 +29,7 @@ creating tests, or evaluating correctness.
 - Python implements UI objects and algorithms, including workbenches, commands,
   dialogs, task panels, and interactive editing.
 - Native DXF entity data is authoritative; display geometry is derived from it.
-- Dependency direction: XynaCAD -> DXFCAD -> FreeCAD.
+- Dependency direction: DXFCAD -> FreeCAD.
 
 Python commands share an explicit object model in `dxfcad_commands.py`:
 
@@ -232,7 +241,7 @@ Move/Copy/Rotate/Mirror/Scale, LINE Trim/Extend, primitive/straight-polyline Off
 polyline-corner Fillet/Chamfer, plain text creation/editing, layer/property editing,
 and DXF export. Draw, Modify, and Drawing toolbars expose the frequent actions;
 all commands remain available in the DXFCAD menu.
-No FreeCAD or XynaCAD source changes are needed.
+No FreeCAD source changes are needed.
 
 LWPolyline also has a native FreeCAD document object, enabled with
 `DXFCAD_BUILD_NATIVE_OBJECTS=ON`. Its inheritance is
@@ -764,7 +773,7 @@ The packaged folder contains both `DXFCAD` and `_DXFCADObjects` extensions.
 `DXFCAD` first loads FreeCAD's Part module, then the companion library registers
 the native classes. This ordering also supports loading types during FCStd
 restoration. `DXFCAD.NATIVE_DOCUMENT_OBJECTS` reports whether this build supports
-the native classes. The native configuration has twenty-two CTest entries, including
+the native classes. The native configuration includes CTest coverage for
 LWPolyline, LINE, ARC, CIRCLE, TEXT, MTEXT, and DIMENSION inheritance, C++ recomputation,
 invalid-data recovery, undo/redo, and cold restore from saved type names without
 Python document proxies.
@@ -813,8 +822,8 @@ cmake --install build/python311 --prefix "$PWD/build/stage/DXFCAD"
 ```
 
 Substitute the installed pybind11 configuration directory. Setting
-`DXFCAD_FREECAD_PYTHON_EXECUTABLE` adds FreeCAD CTest entries, for seventeen entries in
-total. One imports FreeCAD before running the twelve binding tests, including
+`DXFCAD_FREECAD_PYTHON_EXECUTABLE` adds FreeCAD CTest entries.
+One imports FreeCAD before running the binding tests, including
 comparisons of OCS and world-coordinate geometry with FreeCAD Placement and Part.
 The two FreeCAD comparisons are skipped when running without FreeCAD. The same suite was
 also verified against the staged package:
@@ -1766,8 +1775,9 @@ extensions are required for these launch configurations.
 ### Install manually
 
 1. In FreeCAD's Python console, run `print(App.getUserAppDataDir())`.
-2. Close FreeCAD. For a native build, copy the contents of the staged
-   `build/stage/DXFCAD` folder into that directory's `Mod/DXFCAD` folder.
+2. Close FreeCAD. Copy the contents of the staged `build/stage/DXFCAD` folder
+   (compatibility build) or `build/native/package/DXFCAD` folder (native build)
+   into that directory's `Mod/DXFCAD` folder, using the matching FreeCAD runtime.
    `Init.py`, `InitGui.py`, and the compiled extension must be directly inside
    `Mod/DXFCAD`. Copying the repository alone installs only the Python UI skeleton.
 3. Restart FreeCAD and select **DXFCAD** in the workbench selector.
@@ -1776,7 +1786,7 @@ extensions are required for these launch configurations.
 
 The Report view should show `DXFCAD workbench loaded successfully.`
 The command works without an open document and does not change geometry.
-XynaCAD is not required. This check verifies UI loading only.
+This check verifies UI loading only.
 
 Python entry points must be UTF-8 without a byte-order mark. FreeCAD compiles
 their decoded text, which rejects a leading U+FEFF even though ordinary Python
