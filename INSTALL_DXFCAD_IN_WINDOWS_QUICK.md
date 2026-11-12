@@ -1,8 +1,16 @@
-# Windows installation
+# Install DXFCAD on Windows (quick guide)
 
 FreeCAD 1.1.4, 64-bit Python 3.11, compatibility build.
 
+After building and testing, continue with
+[Develop DXFCAD with VS Code and Codex](DEVELOP_VSCODE_CODEX.md) for editor setup,
+isolated FreeCAD launches, testing, and the daily coding workflow.
+
 ## 1. Install software
+
+Separate installation guides are available for [FreeCAD](INSTALL_FREECAD.md),
+[Git](INSTALL_GIT.md), [Visual Studio C++ tools](INSTALL_VISUAL_STUDIO.md), and
+[VS Code](INSTALL_VSCODE.md).
 
 ### 1.1 FreeCAD
 

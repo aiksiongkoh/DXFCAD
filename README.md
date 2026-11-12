@@ -6,7 +6,7 @@ DXFCAD is maintained independently of FreeCAD.
 
 ## Installation
 
-For steps and commands only, use the [Windows quick install guide](INSTALL_WINDOWS_QUICK.md).
+For steps and commands only, use the [Windows quick install guide](INSTALL_DXFCAD_IN_WINDOWS_QUICK.md).
 
 For a new Windows machine, follow
 [Install FreeCAD and DXFCAD from scratch](INSTALL_WINDOWS.md). It covers FreeCAD,
@@ -15,6 +15,9 @@ installing the workbench. The tested starting point is FreeCAD 1.1.4 with
 64-bit Python 3.11, using the compatibility adapter.
 
 ## Contributing
+
+For the editor setup and daily development workflow, follow
+[Develop DXFCAD with VS Code and Codex on Windows](DEVELOP_VSCODE_CODEX.md).
 
 Follow the project instructions in [AGENTS.md](AGENTS.md). Read
 [ARCHITECTURE.md](ARCHITECTURE.md) before designing or substantially changing
